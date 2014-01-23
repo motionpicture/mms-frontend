@@ -1,0 +1,6 @@
+{
+    "require-dev": {
+        "codeception/codeception": "*",
+        "filp/whoops": "1.*"
+    }
+}
