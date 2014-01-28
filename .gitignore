@@ -1,21 +1,11 @@
-.DS_Store
-.project
-.settings
-.buildpath
-
-composer.lock
-vendor/*
-!vendor/.gitkeep
-!vendor/MvtkService
+.*
+!.gitignore
 
 uploads/*
 !uploads/.gitkeep
 
-data/*
-!data/.gitkeep
-
-logs/*
-!logs/.gitkeep
+composer.lock
+vendor
 
 tests/_log/*
 !tests/_log/.gitkeep

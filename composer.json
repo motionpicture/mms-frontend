@@ -1,4 +1,13 @@
 {
+    "repositories": [
+        {
+            "type": "vcs",
+            "url": "https://composer:M0P!Xmopix@rock-dev.backlog.jp/git/MWEB/mvtkservice.git"
+        }
+    ],
+    "require": {
+        "motionpicture/mvtkservice" : "dev-master"
+    },
     "require-dev": {
         "codeception/codeception": "*",
         "filp/whoops": "1.*"
