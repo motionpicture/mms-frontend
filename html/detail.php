@@ -7,20 +7,26 @@ try {
 
     $id = $_GET['id'];
 
-    $query = sprintf('SELECT * FROM media WHERE id = \'%s\';', $id);
+    $query = sprintf('SELECT * FROM media WHERE id = \'%s\' AND user_id = \'%s\';',
+                     $id,
+                     $_SERVER['PHP_AUTH_USER']);
     $media = $db->querySingle($query, true);
 
     $urls = array();
+    if (isset($media['id'])) {
+        // smooth streaming用のURL
+        $query = sprintf('SELECT url FROM task WHERE media_id = \'%s\' AND name = \'smooth_streaming\';', $id);
+        $url = $db->querySingle($query);
+        $urls['smooth_streaming'] = $url;
 
-    // smooth streaming用のURL
-    $query = sprintf('SELECT url FROM task WHERE media_id = \'%s\' AND name = \'smooth_streaming\';', $id);
-    $url = $db->querySingle($query);
-    $urls['smooth_streaming'] = $url;
+        // HLS用のURL
+        $query = sprintf('SELECT url FROM task WHERE media_id = \'%s\' AND name = \'http_live_streaming\';', $id);
+        $url = $db->querySingle($query);
+        $urls['http_live_streaming'] = $url;
+    } else {
+        $media = null;
+    }
 
-    // HLS用のURL
-    $query = sprintf('SELECT url FROM task WHERE media_id = \'%s\' AND name = \'http_live_streaming\';', $id);
-    $url = $db->querySingle($query);
-    $urls['http_live_streaming'] = $url;
 } catch(Exception $e) {
     throw($e);
 }
@@ -43,13 +49,17 @@ try {
         <a href="new.php"><span class="title">メディア登録</span></a>
         <a href="index.php"><span class="title">メディア一覧</span></a>
     </nav>
+    こんにちは <?php echo $_SERVER['PHP_AUTH_USER'] ?>さん
 <!--     <a href="#"><span class="title">ログアウト</span><span class="ui-icon logout"></span></a> -->
 </header>
 </div>
 
 <section class="page-content">
     <h2>メディア詳細</h2>
+    <?php if ($media) { ?>
     <?php debug($media); ?>
+    <?php } else { ?>動画が存在しないか、あるいは確認する権限がありません
+    <?php } ?>
 
     <?php if ($urls['smooth_streaming']) { ?>
     <!-- http://technet.microsoft.com/ja-jp/library/dd775198.aspx -->

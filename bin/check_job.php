@@ -1,9 +1,10 @@
 <?php
-file_put_contents('check_job_log', "start check_job\n", FILE_APPEND);
+$logFile = dirname(__FILE__) . '/check_job_log';
+file_put_contents($logFile, "start check_job\n", FILE_APPEND);
 
 require_once('base.php');
 
-require_once('..//vendor/WindowsAzureMediaServices/WindowsAzureMediaServicesContext.php');
+require_once(dirname(__FILE__) . '/../vendor/WindowsAzureMediaServices/WindowsAzureMediaServicesContext.php');
 
 try {
     $mediaContext = new WindowsAzureMediaServicesContext(
@@ -19,7 +20,7 @@ try {
     $medias = array();
     $statement = $db->prepare('SELECT * FROM media');
     $result = $statement->execute();
-    while($res = $result->fetchArray(SQLITE3_ASSOC)){
+    while ($res = $result->fetchArray(SQLITE3_ASSOC)) {
         $medias[] = $res;
     }
 
@@ -33,21 +34,24 @@ try {
         }
     }
 } catch(Exception $e) {
+    file_put_contents($logFile, $e->getMessage() . "\n", FILE_APPEND);
     throw($e);
 }
 
-file_put_contents('check_job_log', "end check_job\n", FILE_APPEND);
+file_put_contents($logFile, "end check_job\n", FILE_APPEND);
 
 function updateJobState($mediaId, $jobId)
 {
-    file_put_contents('check_job_log', "start updateJobState\n", FILE_APPEND);
-    file_put_contents('check_job_log', 'mediaId: ' . $mediaId . "\n", FILE_APPEND);
-    file_put_contents('check_job_log', 'jobId: ' . $jobId . "\n", FILE_APPEND);
+    global $logFile, $mediaContext, $db;
 
-    global $mediaContext, $db;
+    file_put_contents($logFile, "start updateJobState\n", FILE_APPEND);
+    file_put_contents($logFile, 'mediaId: ' . $mediaId . "\n", FILE_APPEND);
+    file_put_contents($logFile, 'jobId: ' . $jobId . "\n", FILE_APPEND);
 
     $job = $mediaContext->getJobReference($jobId);
     $job->get();
+
+    file_put_contents($logFile, print_r($job, true), FILE_APPEND);
 
     // ジョブのステータスを更新
     $query = sprintf("UPDATE media SET job_state = '%s', updated_at = datetime('now') WHERE id = '%s';",
@@ -55,23 +59,31 @@ function updateJobState($mediaId, $jobId)
                     $mediaId);
     $db->exec($query);
 
-    file_put_contents('check_job_log', "end updateJobState", FILE_APPEND);
+    file_put_contents($logFile, "end updateJobState", FILE_APPEND);
 }
 
 function deliverMedia($mediaId, $jobId)
 {
-    file_put_contents('check_job_log', "start deliverMedia\n", FILE_APPEND);
-    file_put_contents('check_job_log', 'mediaId: ' . $mediaId . "\n", FILE_APPEND);
-    file_put_contents('check_job_log', 'jobId: ' . $jobId . "\n", FILE_APPEND);
+    global $logFile, $mediaContext, $db;
 
-    global $mediaContext, $db;
+    file_put_contents($logFile, "start deliverMedia\n", FILE_APPEND);
+    file_put_contents($logFile, 'mediaId: ' . $mediaId . "\n", FILE_APPEND);
+    file_put_contents($logFile, 'jobId: ' . $jobId . "\n", FILE_APPEND);
 
     $job = $mediaContext->getJobReference($jobId);
     $job->get();
 
+    file_put_contents($logFile, print_r($job, true), FILE_APPEND);
+
     if ($job->state != JobState::$FINISHED) {
         return;
     }
+
+    // エンコード完了日時を更新
+    $query = sprintf("UPDATE media SET encoded_at = '%s', updated_at = datetime('now') WHERE id = '%s';",
+                    date('Y-m-d H:i:s', strtotime($job->endTime)),
+                    $mediaId);
+    $db->exec($query);
 
     // 読み取りアクセス許可を持つAccessPolicyの作成
     $accessPolicy = $mediaContext->getAccessPolicyReference();
@@ -112,7 +124,7 @@ function deliverMedia($mediaId, $jobId)
         }
     }
 
-    file_put_contents('check_job_log', "end deliverMedia\n", FILE_APPEND);
+    file_put_contents($logFile, "end deliverMedia\n", FILE_APPEND);
 }
 
 ?>
