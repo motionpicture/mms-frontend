@@ -3,7 +3,7 @@
 require_once('MmsActions.php');
 
 $mms = new MmsActions();
-$message = $mms->form();
+list($message, $defaults) = $mms->form();
 ?>
 
 <!DOCTYPE html>
@@ -36,11 +36,25 @@ $message = $mms->form();
         <input type="hidden" name="MAX_FILE_SIZE" value="100000000" />
 
         <div class="field">
-            <p><span>作品コード:</span></p><input type="text" name="mcode" value="<?php if ($_SERVER['REQUEST_METHOD'] == 'POST'){echo $_POST['mcode'];} ?>">
+            <p>作品コード:</p>
+            <input type="text" name="mcode" value="<?php echo $defaults['mcode'] ?>">
         </div>
+
         <div class="field">
-            <p><span>ファイル:</span></p><input type="file" name="file" value="">
+            <p>カテゴリー:</p>
+            <select name="category_id">
+            <option value ="">カテゴリーを選択してください</option>
+            <?php foreach ($mms->categories as $id => $name) { ?>
+            <option value ="<?php echo $id ?>"<?php if ($defaults['category_id'] == $id) {echo ' selected';} ?>><?php echo $name ?></option>
+            <?php } ?>
+            </select>
         </div>
+
+        <div class="field">
+            <p>ファイル:</p>
+            <input type="file" name="file" value="">
+        </div>
+
         <div class="field">
             <input type="submit" value="登録">
         </div>

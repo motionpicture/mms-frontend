@@ -36,6 +36,7 @@ $medias = $mms->index();
                 <th>作品コード</th>
                 <th>サイズ</th>
                 <th>バージョン</th>
+                <th>カテゴリー</th>
                 <th>ジョブID</th>
                 <th>ジョブ進捗</th>
                 <th>エンコード完了日時</th>
@@ -50,8 +51,9 @@ $medias = $mms->index();
                 <td><?php echo $media['mcode'] ?></td>
                 <td><?php echo $media['size'] ?></div></td>
                 <td><?php echo $media['version'] ?></div></td>
-                <td><?php echo $media['job_id'] ?></td>
-                <td><?php echo JobState::GetJobStateString($media['job_state']) ?></td>
+                <td><?php echo $media['category_id'] ?></div></td>
+                <td><?php echo ($media['job_id'] != '') ? $media['job_id'] : 'ジョブ未登録' ?></td>
+                <td><?php echo ($media['job_state'] != '') ? JobState::GetJobStateString($media['job_state']) : '' ?></td>
                 <td><?php echo $media['encoded_at'] ?></td>
                 <td><?php echo $media['updated_at'] ?></td>
             </tr>

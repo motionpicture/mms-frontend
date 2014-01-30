@@ -7,8 +7,9 @@ require_once(dirname(__FILE__) . '/../vendor/WindowsAzureMediaServices/WindowsAz
 
 class MmsActions
 {
-    private $db;
-    private $mediaContext;
+    public $db;
+    public $mediaContext;
+    public $categories;
 
     function __construct()
     {
@@ -21,6 +22,21 @@ class MmsActions
 //             null
 //         );
 
+        // カテゴリーを取得
+        $categories = array();
+        try {
+            $query = 'SELECT * FROM category';
+            $result = $this->db->query($query);
+            while($res = $result->fetchArray(SQLITE3_ASSOC)){
+                $categories[$res['id']] = $res['name'];
+            }
+        } catch (Exception $e) {
+            $this->log($e);
+
+            throw($e);
+        }
+        $this->categories = $categories;
+
         $this->log($_SERVER);
     }
 
@@ -32,48 +48,59 @@ class MmsActions
     function form()
     {
         $message = null;
+        $defaults = array(
+            'mcode' => '',
+            'category_id' => ''
+        );
 
         if ($_SERVER['REQUEST_METHOD'] == 'POST') {
+            $this->log($_POST);
+
+            $defaults = $_POST;
+
             if (!$_POST['mcode']) {
-                $message = '作品コードを入力してください';
+                $message .= '<br>作品コードを入力してください';
             }
-
+            if (!$_POST['category_id']) {
+                $message .= '<br>カテゴリーを選択してください';
+            }
             if ($_FILES['file']['size'] <= 0) {
-                $message = 'ファイルを選択してください';
+                $message .= '<br>ファイルを選択してください';
             }
-
             if ($message) {
-                return $message;
+                return array($message, $defaults);
             }
 
             try {
                 // トランザクションの開始
                 $this->db->exec('BEGIN DEFERRED;');
 
-                // 同作品のデータがあるか確認
-                $query = sprintf('SELECT COUNT(*) AS count FROM media WHERE mcode = \'%s\';',
-                                $_POST['mcode']);
+                // 同作品同カテゴリーのデータがあるか確認
+                $query = sprintf('SELECT COUNT(*) AS count FROM media WHERE mcode = \'%s\' AND category_id = \'%s\';',
+                                $_POST['mcode'],
+                                $_POST['category_id']);
                 $count = $this->db->querySingle($query);
-
                 // バージョンを確定
                 $version = $count;
-
-                // 作品コードとバージョンからIDを生成
-                $id = $_POST['mcode'] . '_' . $version;
+                // 作品コード、カテゴリー、バージョンからIDを生成
+                $id = implode('_', array($_POST['mcode'], $_POST['category_id'], $version));
 
                 $isSaved = false;
 
                 $query = sprintf(
-                    "INSERT INTO media (id, mcode, version, size, user_id, created_at, updated_at) VALUES ('%s', '%s', '%s', '%s', '%s', datetime('now'), datetime('now'))",
+                    "INSERT INTO media (id, mcode, version, size, user_id, category_id, created_at, updated_at) VALUES ('%s', '%s', '%s', '%s', '%s', '%s', datetime('now'), datetime('now'))",
                     $id,
                     $_POST['mcode'],
                     $version,
                     $_FILES['file']['size'],
-                    $_SERVER['PHP_AUTH_USER']
+                    $_SERVER['PHP_AUTH_USER'],
+                    $_POST['category_id']
                 );
 
                 if (!$this->db->exec($query)) {
-                    throw new Exception('SQLの実行でエラーが発生しました');
+                    $egl = error_get_last();
+                    $e = new Exception('SQLの実行でエラーが発生しました' . $egl['message']);
+                    throw $e;
                 }
 
                 $uploaddir = dirname(__FILE__) . sprintf('/../uploads/%s/', $_SERVER['PHP_AUTH_USER']);
@@ -112,8 +139,9 @@ class MmsActions
         }
 
         $this->log($message);
+        $this->log($defaults);
 
-        return $message;
+        return array($message, $defaults);
     }
 
     /**

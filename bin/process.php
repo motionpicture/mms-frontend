@@ -11,6 +11,100 @@ class MmsBinProcessActions extends MmsBinActions
     }
 
     /**
+     * メディアに未登録のファイルであれば登録して新しいパスを返す
+     *
+     * @param string $filepath もとのファイルパス
+     * @return string $newFilePath 新しいファイルパス
+     * @throws Exception
+     */
+    function createMediaIfNotExist($filepath)
+    {
+        $this->log('$filepath:' . $filepath);
+
+        // すでにデータがあるか確認
+        $id = pathinfo($filepath, PATHINFO_FILENAME);
+        $query = sprintf('SELECT * FROM media WHERE id = \'%s\';', $id);
+        $media = $this->db->querySingle($query, true);
+
+        // あれば何もせず終了
+        if (isset($media['id'])) {
+            return $filepath;
+        }
+
+        // なければ新規登録
+        $isSaved = false;
+        $newFilePath = '';
+
+        try {
+            // ディレクトリからユーザーIDを取得
+            $userId = pathinfo(pathinfo($filepath, PATHINFO_DIRNAME), PATHINFO_FILENAME);
+
+            // 同作品同カテゴリーのデータがあるか確認(フォーム以外からアップロードされた場合、作品コード_カテゴリーID.拡張子というファイル)
+            $idParts = explode('_', $id);
+            $mcode = $idParts[0];
+            $categoryId = $idParts[1];
+            $query = sprintf('SELECT COUNT(*) AS count FROM media WHERE mcode = \'%s\' AND category_id = \'%s\';',
+                            $mcode,
+                            $categoryId);
+            $count = $this->db->querySingle($query);
+            // バージョンを確定
+            $version = $count;
+            // 作品コード、カテゴリー、バージョンからIDを生成
+            $id = implode('_', array($mcode, $categoryId, $version));
+
+            // サイズ
+            $size = (filesize($filepath)) ? filesize($filepath) : '';
+
+            // トランザクションの開始
+            $this->db->exec('BEGIN DEFERRED;');
+
+            $query = sprintf("INSERT INTO media (id, mcode, size, version, user_id, category_id, created_at, updated_at) VALUES ('%s', '%s', '%s', '%s', '%s', '%s', datetime('now'), datetime('now'))",
+                            $id,
+                            $mcode,
+                            $size,
+                            $version,
+                            $userId,
+                            $categoryId);
+            $this->log('$query:' . $query);
+            if (!$this->db->exec($query)) {
+                $egl = error_get_last();
+                $e = new Exception('SQLの実行でエラーが発生しました' . $egl['message']);
+                throw $e;
+            }
+
+            // 新しいファイルパスへリネーム
+            $newFilePath = sprintf('%s/%s.%s',
+                            pathinfo($filepath, PATHINFO_DIRNAME),
+                            $id,
+                            pathinfo($filepath, PATHINFO_EXTENSION));
+            $this->log($newFilePath);
+            if (!rename($filepath, $newFilePath)) {
+                $egl = error_get_last();
+                $e = new Exception('ファイルのリネームでエラーが発生しました' . $egl['message']);
+                throw $e;
+            }
+            chmod($newFilePath, 0644);
+
+            $isSaved = true;
+        } catch (Exception $e) {
+            $this->log($e);
+
+            // ロールバック
+            $this->db->exec('ROLLBACK;');
+            throw($e);
+        }
+
+        if ($isSaved) {
+            // コミット
+            $this->db->exec('COMMIT;');
+        }
+
+        $this->log('$newFilePath:' . $newFilePath);
+
+        return $newFilePath;
+    }
+
+    /**
      * media serviceのjobを作成する
      *
      * @param string $filepath
@@ -19,7 +113,7 @@ class MmsBinProcessActions extends MmsBinActions
      */
     function createJob($filepath)
     {
-        $this->log($filepath);
+        $this->log('$filepath:' . $filepath);
 
         $mediaContext = $this->mediaContext;
 
@@ -169,9 +263,9 @@ class MmsBinProcessActions extends MmsBinActions
      */
     function updateMedia($filepath, $jobId, $jobState)
     {
-        $this->log($filepath);
-        $this->log($jobId);
-        $this->log($jobState);
+        $this->log('$filepath:' . $filepath);
+        $this->log('$jobId:' . $jobId);
+        $this->log('$jobState:' . $jobState);
 
         // ジョブ情報をDBに登録
         try {
@@ -186,20 +280,51 @@ class MmsBinProcessActions extends MmsBinActions
                 // ディレクトリからユーザーIDを取得
                 $pathParts = pathinfo($filepath);
                 $pathParts = pathinfo($pathParts['dirname']);
-                $userId = $path_parts['filename'];
+                $userId = $pathParts['filename'];
 
-                $query = sprintf("INSERT INTO media (id, user_id, job_id, job_state, created_at, updated_at) VALUES ('%s', '%s', '%s', '%s', datetime('now'), datetime('now'))",
+                // 同作品同カテゴリーのデータがあるか確認(フォーム以外からアップロードされた場合、作品コード_カテゴリーID.拡張子というファイル)
+                $idParts = explode('_', $id);
+                $mcode = $idParts[0];
+                $categoryId = $idParts[1];
+                $query = sprintf('SELECT COUNT(*) AS count FROM media WHERE mcode = \'%s\' AND category_id = \'%s\';',
+                                $mcode,
+                                $categoryId);
+                $count = $this->db->querySingle($query);
+                // バージョンを確定
+                $version = $count;
+                // 作品コード、カテゴリー、バージョンからIDを生成
+                $id = implode('_', array($mcode, $categoryId, $version));
+                $this->log('$id:' . $id);
+
+                // サイズ
+                $size = (filesize($filepath)) ? filesize($filepath) : '';
+
+                $query = sprintf("INSERT INTO media (id, mcode, size, version, user_id, category_id, job_id, job_state, created_at, updated_at) VALUES ('%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', datetime('now'), datetime('now'))",
                                 $id,
+                                $mcode,
+                                $size,
+                                $version,
                                 $userId,
+                                $categoryId,
                                 $jobId,
                                 $jobState);
-                $db->exec($query);
+                $this->log('$query:' . $query);
+                if (!$db->exec($query)) {
+                    $egl = error_get_last();
+                    $e = new Exception('SQLの実行でエラーが発生しました' . $egl['message']);
+                    throw $e;
+                }
             } else {
                 $query = sprintf("UPDATE media SET job_id = '%s', job_state = '%s', updated_at = datetime('now') WHERE id = '%s';",
                                 $jobId,
                                 $jobState,
                                 $id);
-                $db->exec($query);
+                $this->log('$query:' . $query);
+                if (!$db->exec($query)) {
+                    $egl = error_get_last();
+                    $e = new Exception('SQLの実行でエラーが発生しました' . $egl['message']);
+                    throw $e;
+                }
             }
         } catch (Exception $e) {
             $this->log($e);
@@ -214,8 +339,10 @@ $processAction = new MmsBinProcessActions();
 $processAction->log('start process ' . gmdate('Y-m-d H:i:s'));
 
 $filepath = fgets(STDIN);
-// $filepath = 'C:\Develop\www\workspace\mms\src\uploads\test\000000_2.MOV';
+// $filepath = 'C:\Develop\www\workspace\mms\src\uploads\test\000000_4.MOV';
 $filepath = str_replace(array("\r\n", "\r", "\n"), '', $filepath);
+
+$filepath = $processAction->createMediaIfNotExist($filepath);
 
 $job = $processAction->createJob($filepath);
 

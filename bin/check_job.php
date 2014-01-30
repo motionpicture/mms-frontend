@@ -100,7 +100,7 @@ try {
 
     // ジョブの状態が$QUEUED　or $SCHEDULED or $PROCESSINGのメディアに関してジョブの状況を確認する
     $medias = array();
-    $query = sprintf('SELECT * FROM media WHERE job_state = \'%s\' OR job_state = \'%s\' OR job_state = \'%s\'',
+    $query = sprintf('SELECT id, job_id FROM media WHERE job_state = \'%s\' OR job_state = \'%s\' OR job_state = \'%s\'',
                     JobState::$QUEUED,
                     JobState::$SCHEDULED,
                     JobState::$PROCESSING);
