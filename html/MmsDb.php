@@ -1,7 +1,5 @@
 <?php
-ini_set('display_errors', 1);
-
-class MyDB extends SQLite3
+class MmsDb extends SQLite3
 {
     function __construct()
     {
@@ -40,13 +38,4 @@ EOF;
         $this->exec($query);
     }
 }
-
-
-function debug($content) {
-    echo '<pre>';
-    print_r($content);
-    echo '</pre>';
-    return;
-}
-
 ?>

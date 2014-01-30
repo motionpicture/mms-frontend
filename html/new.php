@@ -1,87 +1,9 @@
 ﻿<?php
 
-require_once('base.php');
+require_once('MmsActions.php');
 
-$message = null;
-if ($_SERVER['REQUEST_METHOD'] == 'POST') {
-    $message = isValid();
-
-    if (!$message) {
-        try {
-            $db = new MyDB();
-
-            // トランザクションの開始
-            $db->exec('BEGIN DEFERRED;');
-
-            // 同作品のデータがあるか確認
-            $query = sprintf('SELECT COUNT(*) AS count FROM media WHERE mcode = \'%s\' ORDER BY version DESC;', $_POST['mcode']);
-            $count = $db->querySingle($query);
-
-            // バージョンを確定
-            $version = $count;
-
-            // 作品コードとバージョンからIDを生成
-            $id = $_POST['mcode'] . '_' . $version;
-
-            $isSaved = false;
-
-            $query = sprintf(
-                "INSERT INTO media (id, mcode, version, size, user_id, created_at, updated_at) VALUES ('%s', '%s', '%s', '%s', '%s', datetime('now'), datetime('now'))",
-                $id,
-                $_POST['mcode'],
-                $version,
-                $_FILES['file']['size'],
-                $_SERVER['PHP_AUTH_USER']
-            );
-
-            if (!$db->exec($query)) {
-                throw new Exception('SQLの実行でエラーが発生しました');
-            }
-
-            $uploaddir = dirname(__FILE__) . sprintf('/../uploads/%s/', $_SERVER['PHP_AUTH_USER']);
-            // なければ作成
-            if (!file_exists($uploaddir)) {
-                mkdir($uploaddir, 0777);
-                chmod($uploaddir, 0777);
-            }
-            $fileName = basename($_FILES['file']['name']);
-            $extension = pathinfo($fileName, PATHINFO_EXTENSION);
-            $uploadedFileName = $id . '.' . $extension;
-            $uploadfile = $uploaddir . $uploadedFileName;
-
-            if (!move_uploaded_file($_FILES['file']['tmp_name'], $uploadfile)) {
-                throw Exception('ファイルのアップロードでエラーが発生しました');
-            }
-
-            chmod($uploadfile, 0644);
-
-            $isSaved = true;
-        } catch (Exception $e) {
-            // ロールバック
-            $db->exec('ROLLBACK;');
-            throw $e;
-        }
-
-        if ($isSaved) {
-            // コミット
-            $db->exec('COMMIT;');
-            header('Location: index.php');
-        }
-    }
-}
-
-function isValid()
-{
-    if (!$_POST['mcode']) {
-        return '作品コードを入力してください';
-    }
-
-    if ($_FILES['file']['size'] <= 0) {
-        return 'ファイルを選択してください';
-    }
-
-    return '';
-}
+$mms = new MmsActions();
+$message = $mms->form();
 ?>
 
 <!DOCTYPE html>
@@ -106,7 +28,7 @@ function isValid()
 </div>
 
 <section class="page-content">
-    <h2>メディア編集</h2>
+    <h2>メディア登録</h2>
 
     <?php if ($message) { ?><p class="error" style="color: #FF0000;"><?php echo $message ?></p><?php } ?>
 

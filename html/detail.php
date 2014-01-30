@@ -1,36 +1,9 @@
 ﻿<?php
 
-require_once('base.php');
+require_once('MmsActions.php');
 
-try {
-    $db = new MyDB();
-
-    $id = $_GET['id'];
-
-    $query = sprintf('SELECT * FROM media WHERE id = \'%s\' AND user_id = \'%s\';',
-                     $id,
-                     $_SERVER['PHP_AUTH_USER']);
-    $media = $db->querySingle($query, true);
-
-    $urls = array();
-    if (isset($media['id'])) {
-        // smooth streaming用のURL
-        $query = sprintf('SELECT url FROM task WHERE media_id = \'%s\' AND name = \'smooth_streaming\';', $id);
-        $url = $db->querySingle($query);
-        $urls['smooth_streaming'] = $url;
-
-        // HLS用のURL
-        $query = sprintf('SELECT url FROM task WHERE media_id = \'%s\' AND name = \'http_live_streaming\';', $id);
-        $url = $db->querySingle($query);
-        $urls['http_live_streaming'] = $url;
-    } else {
-        $media = null;
-    }
-
-} catch(Exception $e) {
-    throw($e);
-}
-
+$mms = new MmsActions();
+list($media, $urls) = $mms->show();
 ?>
 
 <!DOCTYPE html>
@@ -57,7 +30,7 @@ try {
 <section class="page-content">
     <h2>メディア詳細</h2>
     <?php if ($media) { ?>
-    <?php debug($media); ?>
+    <?php $mms->debug($media); ?>
     <?php } else { ?>動画が存在しないか、あるいは確認する権限がありません
     <?php } ?>
 

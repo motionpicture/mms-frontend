@@ -1,24 +1,10 @@
 <?php
 
-require_once('base.php');
+require_once('MmsActions.php');
 
-require_once('..//vendor/WindowsAzureMediaServices/WindowsAzureMediaServicesContext.php');
-
-try {
-    $db = new MyDB();
-
-    // ユーザーのメディアを取得
-    $medias = array();
-    $query = sprintf('SELECT * FROM media WHERE user_id = \'%s\' ORDER BY updated_at DESC;', $_SERVER['PHP_AUTH_USER']);
-    $result = $db->query($query);
-    while($res = $result->fetchArray(SQLITE3_ASSOC)){
-      $medias[] = $res;
-    }
-} catch(Exception $e) {
-  throw($e);
-}
+$mms = new MmsActions();
+$medias = $mms->index();
 ?>
-
 
 <!DOCTYPE html>
 <html lang="ja">
