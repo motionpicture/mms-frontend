@@ -3,7 +3,7 @@ ini_set('display_errors', 1);
 
 require_once('MmsDb.php');
 
-require_once(dirname(__FILE__) . '/../vendor/WindowsAzureMediaServices/WindowsAzureMediaServicesContext.php');
+require_once(dirname(__FILE__) . '/../lib/WindowsAzureMediaServices/WindowsAzureMediaServicesContext.php');
 
 class MmsBinActions
 {

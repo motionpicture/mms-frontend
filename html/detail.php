@@ -19,18 +19,69 @@ list($media, $urls) = $mms->show();
 <header>
     <nav>
         <h1>メディア管理</h1>
-        <a href="new.php"><span class="title">メディア登録</span></a>
-        <a href="index.php"><span class="title">メディア一覧</span></a>
+        <a href="new.php">メディア登録</a>
+        <a href="index.php">メディア一覧</a>
+        <a href="editUser.php">アカウント編集</a>
     </nav>
     こんにちは <?php echo $_SERVER['PHP_AUTH_USER'] ?>さん
-<!--     <a href="#"><span class="title">ログアウト</span><span class="ui-icon logout"></span></a> -->
 </header>
 </div>
 
 <section class="page-content">
     <h2>メディア詳細</h2>
     <?php if ($media) { ?>
-    <?php $mms->debug($media); ?>
+    <table border="1">
+        <tbody>
+            <tr>
+                <td>作品コード</td>
+                <td><?php echo $media['mcode'] ?></td>
+            </tr>
+            <tr>
+                <td>作品名</td>
+                <td></td>
+            </tr>
+            <tr>
+                <td>バージョン</td>
+                <td><?php echo $media['version'] ?></td>
+            </tr>
+            <tr>
+                <td>サイズ</td>
+                <td><?php echo $media['size'] ?></td>
+            </tr>
+            <tr>
+                <td>カテゴリー</td>
+                <td><?php echo $media['category_id'] ?></td>
+            </tr>
+            <tr>
+                <td>登録者</td>
+                <td><?php echo $media['user_id'] ?></td>
+            </tr>
+            <tr>
+                <td>ジョブID</td>
+                <td><?php echo ($media['job_id'] != '') ? $media['job_id'] : 'ジョブ未登録' ?></td>
+            </tr>
+            <tr>
+                <td>ジョブ進捗</td>
+                <td><?php echo ($media['job_state'] != '') ? JobState::GetJobStateString($media['job_state']) : '' ?></td>
+            </tr>
+            <tr>
+                <td>登録日時</td>
+                <td><?php echo $media['created_at'] ?></td>
+            </tr>
+            <tr>
+                <td>エンコード完了日時</td>
+                <td><?php echo $media['encoded_at'] ?></td>
+            </tr>
+            <tr>
+                <td>Smooth Streaming URL</td>
+                <td><?php echo $urls['smooth_streaming'] ?></td>
+            </tr>
+            <tr>
+                <td>Http Live Streaming URL</td>
+                <td><?php echo $urls['http_live_streaming'] ?></td>
+            </tr>
+        </tbody>
+    </table><!-- /.movies -->
     <?php } else { ?>動画が存在しないか、あるいは確認する権限がありません
     <?php } ?>
 

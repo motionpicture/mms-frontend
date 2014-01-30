@@ -19,11 +19,11 @@ $medias = $mms->index();
 <header>
     <nav>
         <h1>メディア管理</h1>
-        <a href="new.php"><span class="title">メディア登録</span></a>
-        <a href="index.php"><span class="title">メディア一覧</span></a>
+        <a href="new.php">メディア登録</a>
+        <a href="index.php">メディア一覧</a>
+        <a href="editUser.php">アカウント編集</a>
     </nav>
     こんにちは <?php echo $_SERVER['PHP_AUTH_USER'] ?>さん
-<!--     <a href="#"><span class="title">ログアウト</span><span class="ui-icon logout"></span></a> -->
 </header>
 </div>
 

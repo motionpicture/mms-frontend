@@ -3,7 +3,7 @@ ini_set('display_errors', 1);
 
 require_once('MmsDb.php');
 
-require_once(dirname(__FILE__) . '/../vendor/WindowsAzureMediaServices/WindowsAzureMediaServicesContext.php');
+require_once(dirname(__FILE__) . '/../lib/WindowsAzureMediaServices/WindowsAzureMediaServicesContext.php');
 
 class MmsActions
 {
@@ -36,6 +36,21 @@ class MmsActions
             throw($e);
         }
         $this->categories = $categories;
+
+        // DBにベーシック認証ユーザーが存在しなかれば登録
+        $query = sprintf('SELECT * FROM user WHERE id = \'%s\';',
+                        $_SERVER['PHP_AUTH_USER']);
+        $user = $this->db->querySingle($query, true);
+        if (!isset($user['id'])) {
+            $query = sprintf("INSERT INTO user (id, created_at, updated_at) VALUES ('%s', datetime('now'), datetime('now'))",
+                            $_SERVER['PHP_AUTH_USER']);
+            $this->log($query);
+            if (!$this->db->exec($query)) {
+                $egl = error_get_last();
+                $e = new Exception('SQLの実行でエラーが発生しました' . $egl['message']);
+                throw $e;
+            }
+        }
 
         $this->log($_SERVER);
     }
@@ -180,7 +195,10 @@ class MmsActions
     function show()
     {
         $media = null;
-        $urls = array();
+        $urls = array(
+            'smooth_streaming' => '',
+            'http_live_streaming' => '',
+        );
 
         try {
             $id = $_GET['id'];
@@ -203,6 +221,36 @@ class MmsActions
             } else {
                 $media = null;
             }
+
+            /*
+            require_once(dirname(__FILE__) . '/../vendor/autoload.php');
+//             include 'vendor/autoload.php';
+            $option = array(
+                'soap' => array(
+                    'endPoint' => 'https://ssl.movieticket.jp',
+                ),
+                'blob' => array(
+                    'name' => 'testmovieticketfrontend',
+                    'key' => 'c93s/ZXgTySSgB6FrCWvOXalfRxKQFd96s61X8TwMUc3jmjAeRyBY9jSMvVQXh4U9gIRNNH6mCkn44ZG/T3OXA==',
+                ),
+                'sendgrid' => array(
+                    'api_user' => 'azure_2fa68dcc38c9589d53104d96bc2798ed@azure.com',
+                    'api_key' => 'pwmk27ud',
+                    'from' => 'info@movieticket.jp',
+                    'fromname' => 'ムビチケ',
+                ),
+            );
+            $factory = new MvtkServiceFactory($option);
+            $service = $factory->createInstance('Film');
+            $code = '054044';
+            $params = array(
+                'skhnCd' => $code,
+                'dvcTyp' => MvtkServiceCommon::DVC_TYP_PC,
+            );
+            $film = $service->GetFilmDetail($params);
+            var_dump($film);
+            var_dump($film->toArray());
+            */
         } catch (Exception $e) {
             $this->log($e);
 
@@ -213,6 +261,73 @@ class MmsActions
         $this->log($urls);
 
         return array($media, $urls);
+    }
+
+    /**
+     * ユーザー編集
+     *
+     * @return string エラーメッセージ
+     */
+    function editUser()
+    {
+        $message = null;
+
+        $query = sprintf('SELECT * FROM user WHERE id = \'%s\';',
+                        $_SERVER['PHP_AUTH_USER']);
+        $user = $this->db->querySingle($query, true);
+
+        $defaults = array(
+            'email' => $user['email'],
+        );
+
+        if ($_SERVER['REQUEST_METHOD'] == 'POST') {
+            $this->log($_POST);
+
+            $defaults = $_POST;
+
+            if (!$_POST['email']) {
+                $message .= '<br>メールアドレスを入力してください';
+            }
+            if ($message) {
+                return array($message, $defaults);
+            }
+
+            try {
+                // トランザクションの開始
+                $this->db->exec('BEGIN DEFERRED;');
+
+                $isSaved = false;
+
+                $query = sprintf("UPDATE user SET email = '%s', updated_at = datetime('now') WHERE id = '%s';",
+                                $_POST['email'],
+                                $user['id']);
+                $this->log('$query:' . $query);
+                if (!$this->db->exec($query)) {
+                    $egl = error_get_last();
+                    $e = new Exception('SQLの実行でエラーが発生しました' . $egl['message']);
+                    throw $e;
+                }
+
+                $isSaved = true;
+            } catch (Exception $e) {
+                $this->log($e);
+
+                // ロールバック
+                $this->db->exec('ROLLBACK;');
+                throw $e;
+            }
+
+            if ($isSaved) {
+                // コミット
+                $this->db->exec('COMMIT;');
+                header('Location: editUser.php');
+            }
+        }
+
+        $this->log($message);
+        $this->log($defaults);
+
+        return array($message, $defaults);
     }
 
     function log($content)

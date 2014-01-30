@@ -5,7 +5,7 @@ class MmsDb extends SQLite3
     {
         $this->open(dirname(__FILE__) . '/../db/mms.db');
 
-//         $this->tryInit();
+        $this->tryInit();
     }
 
     function tryInit()
@@ -40,14 +40,13 @@ CREATE TABLE IF NOT EXISTS `category` (
     `updated_at` datetime NOT NULL
 );
 
-BEGIN;
-INSERT INTO category (name, created_at, updated_at) VALUES('カテゴリー1', datetime('now'), datetime('now'));
-INSERT INTO category (name, created_at, updated_at) VALUES('カテゴリー2', datetime('now'), datetime('now'));
-INSERT INTO category (name, created_at, updated_at) VALUES('カテゴリー3', datetime('now'), datetime('now'));
-INSERT INTO category (name, created_at, updated_at) VALUES('カテゴリー4', datetime('now'), datetime('now'));
-INSERT INTO category (name, created_at, updated_at) VALUES('カテゴリー5', datetime('now'), datetime('now'));
-INSERT INTO category (name, created_at, updated_at) VALUES('カテゴリー6', datetime('now'), datetime('now'));
-COMMIT;
+CREATE TABLE IF NOT EXISTS `user` (
+    `id` varchar(100) NOT NULL PRIMARY KEY,
+    `name` varchar(100) DEFAULT NULL,
+    `email` varchar(255) DEFAULT NULL,
+    `created_at` datetime NOT NULL,
+    `updated_at` datetime NOT NULL
+);
 EOF;
         $this->exec($query);
     }

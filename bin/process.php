@@ -339,7 +339,7 @@ $processAction = new MmsBinProcessActions();
 $processAction->log('start process ' . gmdate('Y-m-d H:i:s'));
 
 $filepath = fgets(STDIN);
-// $filepath = 'C:\Develop\www\workspace\mms\src\uploads\test\000000_4.MOV';
+// $filepath = 'C:\Develop\www\workspace\mms\src\uploads\test\000000_3_1.MOV';
 $filepath = str_replace(array("\r\n", "\r", "\n"), '', $filepath);
 
 $filepath = $processAction->createMediaIfNotExist($filepath);
