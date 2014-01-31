@@ -37,8 +37,9 @@ class MmsBinCheckJobActions extends MmsBinActions
             $this->db->exec($query);
 
             // ジョブのステータスを更新
-            $query = sprintf("UPDATE media SET job_state = '%s', updated_at = datetime('now') WHERE id = '%s';",
+            $query = sprintf("UPDATE media SET job_state = '%s', updated_at = %s WHERE id = '%s';",
                             $job->state,
+                            'datetime(\'now\', \'localtime\')',
                             $mediaId);
             $this->log('$query:' . $query);
             if (!$this->db->exec($query)) {
@@ -50,8 +51,9 @@ class MmsBinCheckJobActions extends MmsBinActions
             // ジョブが完了の場合、URL発行プロセス
             if ($job->state == JobState::$FINISHED) {
                 // エンコード完了日時を更新
-                $query = sprintf("UPDATE media SET encoded_at = '%s', updated_at = datetime('now') WHERE id = '%s';",
-                                date('Y-m-d H:i:s', strtotime($job->endTime)),
+                $query = sprintf("UPDATE media SET encoded_at = '%s', updated_at = %s WHERE id = '%s';",
+                                date('Y-m-d H:i:s', strtotime('+9 hours', strtotime($job->endTime))),
+                                'datetime(\'now\', \'localtime\')',
                                 $mediaId);
                 $this->log('$query:' . $query);
                 if (!$this->db->exec($query)) {
@@ -91,10 +93,12 @@ class MmsBinCheckJobActions extends MmsBinActions
                                 break;
                         }
 
-                        $query = sprintf("INSERT INTO task (media_id, name, url, created_at, updated_at) VALUES ('%s', '%s', '%s', datetime('now'), datetime('now'))",
+                        $query = sprintf("INSERT INTO task (media_id, name, url, created_at, updated_at) VALUES ('%s', '%s', '%s', %s, %s)",
                                         $mediaId,
                                         $asset->name,
-                                        $url);
+                                        $url,
+                                        'datetime(\'now\', \'localtime\')',
+                                        'datetime(\'now\', \'localtime\')');
                         $this->log('$query:' . $query);
                         if (!$this->db->exec($query)) {
                             $egl = error_get_last();

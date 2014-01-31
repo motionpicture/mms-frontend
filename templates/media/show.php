@@ -38,16 +38,20 @@
                 <td><?php echo ($media['job_state'] != '') ? JobState::GetJobStateString($media['job_state']) : '' ?></td>
             </tr>
             <tr>
+                <td>ジョブ開始日時</td>
+                <td><?php echo $media['job_start_time'] ?></td>
+            </tr>
+            <tr>
+                <td>ジョブ完了or失敗orキャンセル日時</td>
+                <td><?php echo $media['job_end_time'] ?></td>
+            </tr>
+            <tr>
                 <td>登録日時</td>
                 <td><?php echo $media['created_at'] ?></td>
             </tr>
             <tr>
-                <td>エンコード完了日時</td>
-                <td><?php echo $media['encoded_at'] ?></td>
-            </tr>
-            <tr>
                 <td>MPEG DASH URL</td>
-                <td><?php echo $urls['smooth_streaming'] ?>(format=mpd-time-csf)</td>
+                <td><?php echo ($urls['smooth_streaming']) ? $urls['smooth_streaming'] . '(format=mpd-time-csf)' : '' ?></td>
             </tr>
             <tr>
                 <td>Smooth Streaming URL</td>
@@ -55,7 +59,7 @@
             </tr>
             <tr>
                 <td>Http Live Streaming URL</td>
-                <td><?php echo $urls['http_live_streaming'] ?>(format=m3u8-aapl)</td>
+                <td><?php echo ($urls['smooth_streaming']) ? $urls['smooth_streaming'] . '(format=m3u8-aapl)' : '' ?></td>
             </tr>
         </tbody>
     </table><!-- /.movies -->

@@ -1,4 +1,7 @@
 <?php
+// デフォルトタイムゾーン
+date_default_timezone_set('Asia/Tokyo');
+
 require_once('MmsDb.php');
 
 require_once(dirname(__FILE__) . '/../lib/WindowsAzureMediaServices/WindowsAzureMediaServicesContext.php');

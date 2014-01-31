@@ -86,13 +86,15 @@ $app->post('/media/new', function () use ($app) {
         $isSaved = false;
 
         $query = sprintf(
-            "INSERT INTO media (id, mcode, version, size, user_id, category_id, created_at, updated_at) VALUES ('%s', '%s', '%s', '%s', '%s', '%s', datetime('now'), datetime('now'))",
+            "INSERT INTO media (id, mcode, version, size, user_id, category_id, created_at, updated_at) VALUES ('%s', '%s', '%s', '%s', '%s', '%s', %s, %s)",
             $id,
             $_POST['mcode'],
             $version,
             $_FILES['file']['size'],
             $_SERVER['PHP_AUTH_USER'],
-            $_POST['category_id']
+            $_POST['category_id'],
+            'datetime(\'now\', \'localtime\')',
+            'datetime(\'now\', \'localtime\')'
         );
         $app->log->debug('$query:' . $query);
         if (!$app->db->exec($query)) {
@@ -197,6 +199,31 @@ $app->get('/media/:id', function ($id) use ($app) {
         $app->log->debug(print_r($e, true));
 
         throw($e);
+    }
+
+    $media['job_start_time'] = '';
+    $media['job_end_time'] = '';
+    if ($media['job_id']) {
+        try {
+            // メディアサービスよりジョブを取得
+            $app->mediaContext = new WindowsAzureMediaServicesContext(
+                            'testmvtkms',
+                            'Vi3fX70rZKrtk/DM6TRoJ/XpxmkC29LNOzWimE06rx4=',
+                            null,
+                            null
+            );
+            $job = $app->mediaContext->getJobReference($media['job_id']);
+            $job->get();
+
+            if ($job->startTime) {
+                $media['job_start_time'] = date('Y-m-d H:i:s', strtotime('+9 hours', strtotime($job->startTime)));
+            }
+            if ($job->endTime) {
+                $media['job_end_time'] = date('Y-m-d H:i:s', strtotime('+9 hours', strtotime($job->endTime)));
+            }
+        } catch (Exception $e) {
+            $app->log->debug(print_r($e, true));
+        }
     }
 
     $media['movie_name'] = '';

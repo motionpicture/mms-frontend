@@ -58,13 +58,15 @@ class MmsBinProcessActions extends MmsBinActions
             // トランザクションの開始
             $this->db->exec('BEGIN DEFERRED;');
 
-            $query = sprintf("INSERT INTO media (id, mcode, size, version, user_id, category_id, created_at, updated_at) VALUES ('%s', '%s', '%s', '%s', '%s', '%s', datetime('now'), datetime('now'))",
+            $query = sprintf("INSERT INTO media (id, mcode, size, version, user_id, category_id, created_at, updated_at) VALUES ('%s', '%s', '%s', '%s', '%s', '%s', %s, %s)",
                             $id,
                             $mcode,
                             $size,
                             $version,
                             $userId,
-                            $categoryId);
+                            $categoryId,
+                            'datetime(\'now\', \'localtime\')',
+                            'datetime(\'now\', \'localtime\')');
             $this->log('$query:' . $query);
             if (!$this->db->exec($query)) {
                 $egl = error_get_last();
@@ -291,48 +293,11 @@ class MmsBinProcessActions extends MmsBinActions
             $query = sprintf('SELECT * FROM media WHERE id = \'%s\';', $id);
             $media = $db->querySingle($query, true);
 
-            if (!isset($media['id'])) {
-                // ディレクトリからユーザーIDを取得
-                $pathParts = pathinfo($filepath);
-                $pathParts = pathinfo($pathParts['dirname']);
-                $userId = $pathParts['filename'];
-
-                // 同作品同カテゴリーのデータがあるか確認(フォーム以外からアップロードされた場合、作品コード_カテゴリーID.拡張子というファイル)
-                $idParts = explode('_', $id);
-                $mcode = $idParts[0];
-                $categoryId = $idParts[1];
-                $query = sprintf('SELECT COUNT(*) AS count FROM media WHERE mcode = \'%s\' AND category_id = \'%s\';',
-                                $mcode,
-                                $categoryId);
-                $count = $this->db->querySingle($query);
-                // バージョンを確定
-                $version = $count;
-                // 作品コード、カテゴリー、バージョンからIDを生成
-                $id = implode('_', array($mcode, $categoryId, $version));
-                $this->log('$id:' . $id);
-
-                // サイズ
-                $size = (filesize($filepath)) ? filesize($filepath) : '';
-
-                $query = sprintf("INSERT INTO media (id, mcode, size, version, user_id, category_id, job_id, job_state, created_at, updated_at) VALUES ('%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', datetime('now'), datetime('now'))",
-                                $id,
-                                $mcode,
-                                $size,
-                                $version,
-                                $userId,
-                                $categoryId,
-                                $jobId,
-                                $jobState);
-                $this->log('$query:' . $query);
-                if (!$db->exec($query)) {
-                    $egl = error_get_last();
-                    $e = new Exception('SQLの実行でエラーが発生しました' . $egl['message']);
-                    throw $e;
-                }
-            } else {
-                $query = sprintf("UPDATE media SET job_id = '%s', job_state = '%s', updated_at = datetime('now') WHERE id = '%s';",
+            if (isset($media['id'])) {
+                $query = sprintf("UPDATE media SET job_id = '%s', job_state = '%s', updated_at = %s WHERE id = '%s';",
                                 $jobId,
                                 $jobState,
+                                'datetime(\'now\', \'localtime\')',
                                 $id);
                 $this->log('$query:' . $query);
                 if (!$db->exec($query)) {
@@ -354,7 +319,7 @@ $processAction = new MmsBinProcessActions();
 $processAction->log('start process ' . gmdate('Y-m-d H:i:s'));
 
 $filepath = fgets(STDIN);
-// $filepath = 'C:\Develop\www\workspace\mms\src\uploads\test\000000_2_4.MOV';
+// $filepath = 'C:\Develop\www\workspace\mms\src\uploads\test\054055_1_0.MOV';
 $filepath = str_replace(array("\r\n", "\r", "\n"), '', $filepath);
 
 $filepath = $processAction->createMediaIfNotExist($filepath);
