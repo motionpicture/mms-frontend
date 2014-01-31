@@ -3,14 +3,20 @@
         {
             "type": "vcs",
             "url": "https://composer:M0P!Xmopix@rock-dev.backlog.jp/git/MWEB/mvtkservice.git"
+        },
+        {
+            "type": "pear",
+            "url": "http://pear.php.net"
         }
     ],
     "require": {
         "motionpicture/mvtkservice" : "dev-master",
-        "slim/slim": "2.*"
+        "slim/slim": "2.*",
+        "microsoft/windowsazure": "*"
     },
     "require-dev": {
         "codeception/codeception": "*",
         "filp/whoops": "1.*"
-    }
+    },
+    "minimum-stability": "dev"
 }

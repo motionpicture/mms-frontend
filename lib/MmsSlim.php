@@ -3,13 +3,15 @@
 date_default_timezone_set('Asia/Tokyo');
 
 require_once('MmsDb.php');
+require_once dirname(__FILE__) . '/../vendor/autoload.php';
 
-require_once(dirname(__FILE__) . '/../lib/WindowsAzureMediaServices/WindowsAzureMediaServicesContext.php');
+use WindowsAzure\Common\ServicesBuilder;
+use WindowsAzure\Common\ServiceException;
 
 class MmsSlim extends \Slim\Slim
 {
     public $db;
-    public $mediaContext;
+    public $mediaServicesWrapper;
     public $categories;
 
     /**
@@ -21,6 +23,15 @@ class MmsSlim extends \Slim\Slim
         parent::__construct($userSettings);
 
         $this->db = new MmsDb();
+
+        // メディアサービス
+        $settings = new WindowsAzure\Common\Internal\MediaServicesSettings(
+            'testmvtkms',
+            'Vi3fX70rZKrtk/DM6TRoJ/XpxmkC29LNOzWimE06rx4=',
+            'https://media.windows.net/API/',
+            'https://wamsprodglobal001acs.accesscontrol.windows.net/v2/OAuth2-13'
+        );
+        $this->mediaServicesWrapper = ServicesBuilder::getInstance()->createMediaServicesService($settings);
 
         // カテゴリーを取得
         $categories = array();

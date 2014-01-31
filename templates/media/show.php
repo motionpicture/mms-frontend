@@ -35,7 +35,7 @@
             </tr>
             <tr>
                 <td>ジョブ進捗</td>
-                <td><?php echo ($media['job_state'] != '') ? JobState::GetJobStateString($media['job_state']) : '' ?></td>
+                <td><?php echo $media['job_state'] ?></td>
             </tr>
             <tr>
                 <td>ジョブ開始日時</td>

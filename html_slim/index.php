@@ -1,6 +1,5 @@
 <?php
-require dirname(__FILE__) . '/../vendor/autoload.php';
-require dirname(__FILE__) . '/MmsSlim.php';
+require_once dirname(__FILE__) . '/../lib/MmsSlim.php';
 
 $app = new \MmsSlim([
     'debug'       => true,
@@ -206,20 +205,13 @@ $app->get('/media/:id', function ($id) use ($app) {
     if ($media['job_id']) {
         try {
             // メディアサービスよりジョブを取得
-            $app->mediaContext = new WindowsAzureMediaServicesContext(
-                            'testmvtkms',
-                            'Vi3fX70rZKrtk/DM6TRoJ/XpxmkC29LNOzWimE06rx4=',
-                            null,
-                            null
-            );
-            $job = $app->mediaContext->getJobReference($media['job_id']);
-            $job->get();
+            $job = $app->mediaServicesWrapper->getJob($media['job_id']);
 
-            if ($job->startTime) {
-                $media['job_start_time'] = date('Y-m-d H:i:s', strtotime('+9 hours', strtotime($job->startTime)));
+            if ($job->getStartTime()) {
+                $media['job_start_time'] = date('Y-m-d H:i:s', strtotime('+9 hours', $job->getStartTime()->getTimestamp()));
             }
-            if ($job->endTime) {
-                $media['job_end_time'] = date('Y-m-d H:i:s', strtotime('+9 hours', strtotime($job->endTime)));
+            if ($job->getEndTime()) {
+                $media['job_end_time'] = date('Y-m-d H:i:s', strtotime('+9 hours', $job->getEndTime()->getTimestamp()));
             }
         } catch (Exception $e) {
             $app->log->debug(print_r($e, true));
@@ -228,8 +220,6 @@ $app->get('/media/:id', function ($id) use ($app) {
 
     $media['movie_name'] = '';
     try {
-        require_once(dirname(__FILE__) . '/../vendor/autoload.php');
-
         $option = [
             'soap' => [
                 'endPoint' => 'https://www.movieticket.jp',

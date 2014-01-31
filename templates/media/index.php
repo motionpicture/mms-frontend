@@ -26,7 +26,7 @@
                 <td><?php echo $media['version'] ?></div></td>
                 <td><?php echo $media['category_id'] ?></div></td>
                 <td><?php echo ($media['job_id'] != '') ? $media['job_id'] : 'ジョブ未登録' ?></td>
-                <td><?php echo ($media['job_state'] != '') ? JobState::GetJobStateString($media['job_state']) : '' ?></td>
+                <td><?php echo $media['job_state'] ?></td>
                 <td><?php echo $media['encoded_at'] ?></td>
                 <td><?php echo $media['updated_at'] ?></td>
             </tr>
