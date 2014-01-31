@@ -210,51 +210,55 @@ class MmsActions
 
             if (isset($media['id'])) {
                 // smooth streaming用のURL
-                $query = sprintf('SELECT url FROM task WHERE media_id = \'%s\' AND name = \'smooth_streaming\';', $id);
+                $query = sprintf('SELECT url FROM task WHERE media_id = \'%s\' AND name = \'smooth_streaming\' ORDER BY updated_at DESC;', $id);
                 $url = $this->db->querySingle($query);
                 $urls['smooth_streaming'] = $url;
 
                 // HLS用のURL
-                $query = sprintf('SELECT url FROM task WHERE media_id = \'%s\' AND name = \'http_live_streaming\';', $id);
+                $query = sprintf('SELECT url FROM task WHERE media_id = \'%s\' AND name = \'http_live_streaming\' ORDER BY updated_at DESC;', $id);
                 $url = $this->db->querySingle($query);
                 $urls['http_live_streaming'] = $url;
             } else {
                 $media = null;
             }
-
-            /*
-            require_once(dirname(__FILE__) . '/../vendor/autoload.php');
-//             include 'vendor/autoload.php';
-            $option = array(
-                'soap' => array(
-                    'endPoint' => 'https://ssl.movieticket.jp',
-                ),
-                'blob' => array(
-                    'name' => 'testmovieticketfrontend',
-                    'key' => 'c93s/ZXgTySSgB6FrCWvOXalfRxKQFd96s61X8TwMUc3jmjAeRyBY9jSMvVQXh4U9gIRNNH6mCkn44ZG/T3OXA==',
-                ),
-                'sendgrid' => array(
-                    'api_user' => 'azure_2fa68dcc38c9589d53104d96bc2798ed@azure.com',
-                    'api_key' => 'pwmk27ud',
-                    'from' => 'info@movieticket.jp',
-                    'fromname' => 'ムビチケ',
-                ),
-            );
-            $factory = new MvtkServiceFactory($option);
-            $service = $factory->createInstance('Film');
-            $code = '054044';
-            $params = array(
-                'skhnCd' => $code,
-                'dvcTyp' => MvtkServiceCommon::DVC_TYP_PC,
-            );
-            $film = $service->GetFilmDetail($params);
-            var_dump($film);
-            var_dump($film->toArray());
-            */
         } catch (Exception $e) {
             $this->log($e);
 
             throw($e);
+        }
+
+        $media['movie_name'] = '';
+        try {
+            require_once(dirname(__FILE__) . '/../vendor/autoload.php');
+
+            $option = [
+                'soap' => [
+                    'endPoint' => 'https://www.movieticket.jp',
+                ],
+                'blob' => [
+                    'name' => 'testmovieticketfrontend',
+                    'key' => 'c93s/ZXgTySSgB6FrCWvOXalfRxKQFd96s61X8TwMUc3jmjAeRyBY9jSMvVQXh4U9gIRNNH6mCkn44ZG/T3OXA==',
+                ],
+                'sendgrid' => [
+                    'api_user' => 'azure_2fa68dcc38c9589d53104d96bc2798ed@azure.com',
+                    'api_key' => 'pwmk27ud',
+                    'from' => 'info@movieticket.jp',
+                    'fromname' => 'ムビチケ',
+                ],
+            ];
+
+            $factory = new \MvtkService\Factory($option);
+            $service = $factory->createInstance('Film');
+            $params = [
+                'skhnCd' => $media['mcode'],
+                'dvcTyp' => \MvtkService\Common::DVC_TYP_PC,
+            ];
+            $film = $service->GetFilmDetail($params);
+            $film = $film->toArray();
+            $media['movie_name'] = $film['SKHN_NM'];
+        } catch (Exception $e) {
+            $this->log($e);
+            $media['movie_name'] = $e->getMessage();
         }
 
         $this->log($media);

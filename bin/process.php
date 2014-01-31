@@ -168,12 +168,26 @@ class MmsBinProcessActions extends MmsBinActions
             $job = $mediaContext->getJobReference();
             $job->name = 'process asset_' . $asset->id . '_' . date('YmdHis');
 
+            // タスクを追加(スムーズストリーミングに変換)
+            $taskName = 'smooth_streaming';
+            $toAdaptiveBitrateTask = $job->AddNewTask(
+                            $taskName,
+                            'nb:mpid:UUID:70bdc2c3-ebf4-42a9-8542-5afc1e55d217',
+                            'H264 Smooth Streaming 1080p'
+            );
+            $toAdaptiveBitrateTask->AddInputMediaAsset($asset);
+            $toAdaptiveBitrateTask->AddNewOutputMediaAsset(
+                            $taskName,
+                            AssetOptions::$NONE
+            );
+
+            /*
             // タスクを追加(アダプティブビットレートに変換)
             $taskName = 'mp4';
             $toAdaptiveBitrateTask = $job->AddNewTask(
                             $taskName,
                             'nb:mpid:UUID:70bdc2c3-ebf4-42a9-8542-5afc1e55d217',
-                            'H264 Broadband 720p'
+                            'H264 Broadband 1080p'
             );
             $toAdaptiveBitrateTask->AddInputMediaAsset($asset);
             $toAdaptiveBitrateTask->AddNewOutputMediaAsset(
@@ -240,6 +254,7 @@ class MmsBinProcessActions extends MmsBinActions
                             $taskName,
                             AssetOptions::$NONE
             );
+            */
 
             $job->submit();
         } catch (Exception $e) {
@@ -339,7 +354,7 @@ $processAction = new MmsBinProcessActions();
 $processAction->log('start process ' . gmdate('Y-m-d H:i:s'));
 
 $filepath = fgets(STDIN);
-// $filepath = 'C:\Develop\www\workspace\mms\src\uploads\test\000000_3_1.MOV';
+// $filepath = 'C:\Develop\www\workspace\mms\src\uploads\test\000000_2_4.MOV';
 $filepath = str_replace(array("\r\n", "\r", "\n"), '', $filepath);
 
 $filepath = $processAction->createMediaIfNotExist($filepath);

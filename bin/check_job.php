@@ -156,14 +156,19 @@ try {
         if ($url) {
             $query = sprintf('SELECT email FROM user WHERE id = \'%s\';', $media['user_id']);
             $email = $checkJobAction->db->querySingle($query);
-            $checkJobAction->log($email);
+            $checkJobAction->log('$email:' . $email);
 
             // 送信
-            $subject = 'ストリーミングURLが発行さされました';
-            $message = 'http://pmmedia.cloudapp.net/detail.php?id=' . $media['id'];
-            $headers = 'From: webmaster@pmmedia.cloudapp.net' . "\r\n"
-                     . 'Reply-To: webmaster@pmmedia.cloudapp.net';
-            mail($email, $subject, $message, $headers);
+            if ($email) {
+                $subject = 'ストリーミングURLが発行さされました';
+                $message = 'http://pmmedia.cloudapp.net/detail.php?id=' . $media['id'];
+                $headers = 'From: webmaster@pmmedia.cloudapp.net' . "\r\n"
+                         . 'Reply-To: webmaster@pmmedia.cloudapp.net';
+                if (!mail($email, $subject, $message, $headers)) {
+                    $egl = error_get_last();
+                    $this->log('メール送信に失敗しました' . $egl['message']);
+                }
+            }
         }
     }
 } catch (Exception $e) {

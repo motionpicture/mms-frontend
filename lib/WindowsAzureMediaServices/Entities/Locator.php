@@ -157,7 +157,9 @@ class Locator
             CURLOPT_INFILESIZE     => filesize($tmp_name),
             CURLOPT_RETURNTRANSFER => 1,
             CURLOPT_BINARYTRANSFER => 1,
-            CURLOPT_SSL_VERIFYPEER => false
+            CURLOPT_SSL_VERIFYPEER => false,
+            CURLOPT_CONNECTTIMEOUT => 0,
+            CURLOPT_TIMEOUT        => 600
         );
         curl_setopt_array($ch, $options);
 

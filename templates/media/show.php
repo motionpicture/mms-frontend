@@ -1,31 +1,4 @@
-﻿<?php
-
-require_once('MmsActions.php');
-
-$mms = new MmsActions();
-list($media, $urls) = $mms->show();
-?>
-
-<!DOCTYPE html>
-<html lang="ja">
-<head>
-<meta charset="utf-8">
-<title>メディア管理</title>
-</head>
-<body>
-<div class="page-inner">
-
-<div class="header">
-<header>
-    <nav>
-        <h1>メディア管理</h1>
-        <a href="new.php">メディア登録</a>
-        <a href="index.php">メディア一覧</a>
-        <a href="editUser.php">アカウント編集</a>
-    </nav>
-    こんにちは <?php echo $_SERVER['PHP_AUTH_USER'] ?>さん
-</header>
-</div>
+﻿<?php require dirname(__FILE__) . '/../header.php' ?>
 
 <section class="page-content">
     <h2>メディア詳細</h2>
@@ -73,12 +46,16 @@ list($media, $urls) = $mms->show();
                 <td><?php echo $media['encoded_at'] ?></td>
             </tr>
             <tr>
+                <td>MPEG DASH URL</td>
+                <td><?php echo $urls['smooth_streaming'] ?>(format=mpd-time-csf)</td>
+            </tr>
+            <tr>
                 <td>Smooth Streaming URL</td>
                 <td><?php echo $urls['smooth_streaming'] ?></td>
             </tr>
             <tr>
                 <td>Http Live Streaming URL</td>
-                <td><?php echo $urls['http_live_streaming'] ?></td>
+                <td><?php echo $urls['http_live_streaming'] ?>(format=m3u8-aapl)</td>
             </tr>
         </tbody>
     </table><!-- /.movies -->
@@ -110,7 +87,7 @@ list($media, $urls) = $mms->show();
     <!-- http://technet.microsoft.com/ja-jp/library/dd775198.aspx -->
     <h2>Smooth Streaming(Silverlight)</h2>
     <object data="data:application/x-silverlight-2," type="application/x-silverlight-2" width="640px" height="480px">
-        <param name="source" value="smoothstreamingplayer-2.2010.1001.1/SmoothStreamingPlayer.xap"/>
+        <param name="source" value="/smoothstreamingplayer-2.2010.1001.1/SmoothStreamingPlayer.xap"/>
         <param name="onError" value="onSilverlightError" />
         <param name="background" value="white" />
         <param name="minRuntimeVersion" value="4.0.50401.0" />
@@ -130,8 +107,4 @@ list($media, $urls) = $mms->show();
     <?php } ?>
 </section><!-- /.page-content -->
 
-<footer><span>&copy; 2013</span></footer>
-
-</div><!-- /.page-inner -->
-</body>
-</html>
+<?php require dirname(__FILE__) . '/../footer.php' ?>

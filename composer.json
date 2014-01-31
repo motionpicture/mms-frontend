@@ -6,7 +6,8 @@
         }
     ],
     "require": {
-        "motionpicture/mvtkservice" : "dev-master"
+        "motionpicture/mvtkservice" : "dev-master",
+        "slim/slim": "2.*"
     },
     "require-dev": {
         "codeception/codeception": "*",
