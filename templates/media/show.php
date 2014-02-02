@@ -14,16 +14,16 @@
                 <td><?php echo $media['movie_name'] ?></td>
             </tr>
             <tr>
+                <td>カテゴリー</td>
+                <td><?php echo $categories[$media['category_id']] ?></td>
+            </tr>
+            <tr>
                 <td>バージョン</td>
                 <td><?php echo $media['version'] ?></td>
             </tr>
             <tr>
                 <td>サイズ</td>
                 <td><?php echo $media['size'] ?></td>
-            </tr>
-            <tr>
-                <td>カテゴリー</td>
-                <td><?php echo $media['category_id'] ?></td>
             </tr>
             <tr>
                 <td>登録者</td>
@@ -39,11 +39,11 @@
             </tr>
             <tr>
                 <td>ジョブ開始日時</td>
-                <td><?php echo $media['job_start_time'] ?></td>
+                <td><?php echo $media['job_start_at'] ?></td>
             </tr>
             <tr>
                 <td>ジョブ完了or失敗orキャンセル日時</td>
-                <td><?php echo $media['job_end_time'] ?></td>
+                <td><?php echo $media['job_end_at'] ?></td>
             </tr>
             <tr>
                 <td>登録日時</td>

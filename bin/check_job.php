@@ -1,6 +1,11 @@
 <?php
 require_once('MmsBinActions.php');
 
+use WindowsAzure\MediaServices\Models\Job;
+use WindowsAzure\MediaServices\Models\AccessPolicy;
+use WindowsAzure\MediaServices\Models\Asset;
+use WindowsAzure\MediaServices\Models\Locator;
+
 class MmsBinCheckJobActions extends MmsBinActions
 {
     function __construct()
@@ -26,9 +31,15 @@ class MmsBinCheckJobActions extends MmsBinActions
 
         $url = null;
 
-        // メディアサービスよりジョブを取得
-        $job = $this->mediaContext->getJobReference($jobId);
-        $job->get();
+        $mediaServicesWrapper = $this->getMediaServicesWrapper();
+
+        try {
+            // メディアサービスよりジョブを取得
+            $job = $mediaServicesWrapper->getJob($jobId);
+        } catch (Exception $e) {
+            $this->log($e->getMessage());
+            throw $e;
+        }
 
         try {
             // トランザクションの開始
@@ -38,7 +49,7 @@ class MmsBinCheckJobActions extends MmsBinActions
 
             // ジョブのステータスを更新
             $query = sprintf("UPDATE media SET job_state = '%s', updated_at = %s WHERE id = '%s';",
-                            $job->state,
+                            $job->getState(),
                             'datetime(\'now\', \'localtime\')',
                             $mediaId);
             $this->log('$query:' . $query);
@@ -49,10 +60,11 @@ class MmsBinCheckJobActions extends MmsBinActions
             }
 
             // ジョブが完了の場合、URL発行プロセス
-            if ($job->state == JobState::$FINISHED) {
+            if ($job->getState() == Job::STATE_FINISHED) {
                 // エンコード完了日時を更新
-                $query = sprintf("UPDATE media SET encoded_at = '%s', updated_at = %s WHERE id = '%s';",
-                                date('Y-m-d H:i:s', strtotime('+9 hours', strtotime($job->endTime))),
+                $query = sprintf("UPDATE media SET job_start_at = '%s', job_end_at = '%s', updated_at = %s WHERE id = '%s';",
+                                date('Y-m-d H:i:s', strtotime('+9 hours', $job->getStartTime()->getTimestamp())),
+                                date('Y-m-d H:i:s', strtotime('+9 hours', $job->getEndTime()->getTimestamp())),
                                 'datetime(\'now\', \'localtime\')',
                                 $mediaId);
                 $this->log('$query:' . $query);
@@ -63,39 +75,38 @@ class MmsBinCheckJobActions extends MmsBinActions
                 }
 
                 // 読み取りアクセス許可を持つAccessPolicyの作成
-                $accessPolicy = $this->mediaContext->getAccessPolicyReference();
-                $accessPolicy->name = 'StreamingPolicy';
-                $accessPolicy->durationInMinutes = '25920000';
-                $accessPolicy->permissions = AccessPolicyPermission::$READ;
-                $accessPolicy->create();
+                $accessPolicy = new AccessPolicy('StreamingPolicy');
+                $accessPolicy->setDurationInMinutes(25920000);
+                $accessPolicy->setPermissions(AccessPolicy::PERMISSIONS_READ);
+                $accessPolicy = $mediaServicesWrapper->createAccessPolicy($accessPolicy);
 
                 // ジョブのアセットを取得
-                $assets = $job->ListOutputMediaAssets();
+                $assets = $mediaServicesWrapper->getJobOutputMediaAssets($job);
+
+                $this->log(print_r($assets, true));
 
                 foreach ($assets as $asset) {
-                    if ($asset->options == AssetOptions::$NONE) {
-                        // コンテンツ ストリーミング用の配信元 URL の作成
-                        $locator = $this->mediaContext->getLocatorReference();
-                        $locator->accessPolicyId = $accessPolicy->id;
-                        $locator->assetId = $asset->id;
-                        $locator->startTime = gmdate('m\/d\/Y H:i:s A', strtotime('-5 minutes'));
-                        $locator->type = LocatorType::$ON_DEMAND_ORIGIN;
-                        $locator->create();
+                    if ($asset->getOptions() == Asset::OPTIONS_NONE) {
+                        // コンテンツストリーミング用の配信元URLの作成
+                        $locator = new Locator($asset, $accessPolicy, Locator::TYPE_ON_DEMAND_ORIGIN);
+                        $locator->setName('StreamingLocator_' . $asset->getId());
+                        $locator->setStartTime(new \DateTime('now -5 minutes'));
+                        $locator = $mediaServicesWrapper->createLocator($locator);
 
                         // URLを生成
-                        switch ($asset->name) {
+                        switch ($asset->getName()) {
                             case 'http_live_streaming':
                             case 'http_live_streaming_playready':
-                                $url = sprintf("%s%s-m3u8-aapl.ism/Manifest(format=m3u8-aapl)", $locator->path, $mediaId);
+                                $url = sprintf("%s%s-m3u8-aapl.ism/Manifest(format=m3u8-aapl)", $locator->getPath(), $mediaId);
                                 break;
                             default:
-                                $url = sprintf("%s%s.ism/Manifest", $locator->path, $mediaId);
+                                $url = sprintf('%s%s.ism/Manifest', $locator->getPath(), $mediaId);
                                 break;
                         }
 
                         $query = sprintf("INSERT INTO task (media_id, name, url, created_at, updated_at) VALUES ('%s', '%s', '%s', %s, %s)",
                                         $mediaId,
-                                        $asset->name,
+                                        $asset->getName(),
                                         $url,
                                         'datetime(\'now\', \'localtime\')',
                                         'datetime(\'now\', \'localtime\')');
@@ -136,28 +147,32 @@ class MmsBinCheckJobActions extends MmsBinActions
 
 $checkJobAction = new MmsBinCheckJobActions();
 
-$checkJobAction->log('start check job ' . gmdate('Y-m-d H:i:s'));
+$checkJobAction->log('start check job ' . date('Y-m-d H:i:s'));
+
+$medias = array();
 
 try {
-    $db = $checkJobAction->db;
-
     // ジョブの状態が$QUEUED　or $SCHEDULED or $PROCESSINGのメディアに関してジョブの状況を確認する
-    $medias = array();
     $query = sprintf('SELECT id, job_id, user_id FROM media WHERE job_state = \'%s\' OR job_state = \'%s\' OR job_state = \'%s\'',
-                    JobState::$QUEUED,
-                    JobState::$SCHEDULED,
-                    JobState::$PROCESSING);
-    $result = $db->query($query);
+                    Job::STATE_QUEUED,
+                    Job::STATE_SCHEDULED,
+                    Job::STATE_PROCESSING);
+    $result = $checkJobAction->db->query($query);
     while ($res = $result->fetchArray(SQLITE3_ASSOC)) {
         $medias[] = $res;
     }
+} catch (Exception $e) {
+    $checkJobAction->log($e);
+    throw $e;
+}
 
-    foreach ($medias as $media) {
+foreach ($medias as $media) {
+    try {
         // ジョブのステータスを更新とURLを発行
         $url = $checkJobAction->tryDeliverMedia($media['id'], $media['job_id']);
 
         // URLが発行されればメール送信
-        if ($url) {
+        if (!is_null($url)) {
             $query = sprintf('SELECT email FROM user WHERE id = \'%s\';', $media['user_id']);
             $email = $checkJobAction->db->querySingle($query);
             $checkJobAction->log('$email:' . $email);
@@ -165,22 +180,20 @@ try {
             // 送信
             if ($email) {
                 $subject = 'ストリーミングURLが発行さされました';
-                $message = 'http://pmmedia.cloudapp.net/detail.php?id=' . $media['id'];
+                $message = 'http://pmmedia.cloudapp.net/media/' . $media['id'];
                 $headers = 'From: webmaster@pmmedia.cloudapp.net' . "\r\n"
-                         . 'Reply-To: webmaster@pmmedia.cloudapp.net';
+                . 'Reply-To: webmaster@pmmedia.cloudapp.net';
                 if (!mail($email, $subject, $message, $headers)) {
                     $egl = error_get_last();
                     $this->log('メール送信に失敗しました' . $egl['message']);
                 }
             }
         }
+    } catch (Exception $e) {
+        $checkJobAction->log($e);
+        continue;
     }
-} catch (Exception $e) {
-    $checkJobAction->log($e);
-
-    throw($e);
 }
 
-$checkJobAction->log('end check job ' . gmdate('Y-m-d H:i:s'));
-
+$checkJobAction->log('end check job ' . date('Y-m-d H:i:s'));
 ?>

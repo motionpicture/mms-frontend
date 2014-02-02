@@ -158,10 +158,11 @@ $app->get('/medias', function () use ($app) {
     $app->render(
         'media/index.php',
         [
-            'medias' => $medias
+            'medias'     => $medias,
+            'categories' => $app->categories
         ]
     );
-});
+})->name('medias');;
 
 /**
  * メディア詳細
@@ -198,24 +199,6 @@ $app->get('/media/:id', function ($id) use ($app) {
         $app->log->debug(print_r($e, true));
 
         throw($e);
-    }
-
-    $media['job_start_time'] = '';
-    $media['job_end_time'] = '';
-    if ($media['job_id']) {
-        try {
-            // メディアサービスよりジョブを取得
-            $job = $app->mediaServicesWrapper->getJob($media['job_id']);
-
-            if ($job->getStartTime()) {
-                $media['job_start_time'] = date('Y-m-d H:i:s', strtotime('+9 hours', $job->getStartTime()->getTimestamp()));
-            }
-            if ($job->getEndTime()) {
-                $media['job_end_time'] = date('Y-m-d H:i:s', strtotime('+9 hours', $job->getEndTime()->getTimestamp()));
-            }
-        } catch (Exception $e) {
-            $app->log->debug(print_r($e, true));
-        }
     }
 
     $media['movie_name'] = '';
@@ -257,10 +240,11 @@ $app->get('/media/:id', function ($id) use ($app) {
         'media/show.php',
         [
             'media' => $media,
-            'urls' => $urls
+            'urls' => $urls,
+            'categories' => $app->categories
         ]
     );
-})->name('meia');
+})->name('media');
 
 /**
  * アカウント編集

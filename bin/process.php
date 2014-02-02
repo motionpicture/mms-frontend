@@ -1,11 +1,20 @@
 <?php
 require_once('MmsBinActions.php');
 
+use WindowsAzure\MediaServices\Models\Asset;
+use WindowsAzure\MediaServices\Models\AccessPolicy;
+use WindowsAzure\MediaServices\Models\Locator;
+use WindowsAzure\MediaServices\Models\Job;
+use WindowsAzure\MediaServices\Models\Task;
+use WindowsAzure\MediaServices\Models\TaskOptions;
+
 class MmsBinProcessActions extends MmsBinActions
 {
     function __construct()
     {
         parent::__construct();
+
+        set_time_limit(0);
 
         $this->logFile = dirname(__FILE__) . '/process_log';
     }
@@ -110,81 +119,66 @@ class MmsBinProcessActions extends MmsBinActions
      * media serviceのjobを作成する
      *
      * @param string $filepath
-     * @return object $job
+     * @return WindowsAzure\MediaServices\Models\Job $job
      * @throws Exception
      */
     function createJob($filepath)
     {
         $this->log('$filepath:' . $filepath);
 
-        $mediaContext = $this->mediaContext;
+        $job = null;
 
         try {
+            $mediaServicesWrapper = $this->getMediaServicesWrapper();
+
             // 資産を作成する
-            $asset = $mediaContext->getAssetReference();
-            $asset->name = 'NewAssets' . date('YmdHis');
-            $asset->options = AssetOptions::$STORAGE_ENCRYPTED;
-            $asset->create();
+            $asset = new Asset(Asset::OPTIONS_STORAGE_ENCRYPTED);
+            $asset->setName('NewAssets' . date('YmdHis'));
+            $asset = $mediaServicesWrapper->createAsset($asset);
 
             $this->log($asset);
 
             // AccessPolicy を設定する
-            $accessPolicy = $mediaContext->getAccessPolicyReference();
-            $accessPolicy->name = 'NewUploadPolicy';
-            $accessPolicy->durationInMinutes = '60';
-            $accessPolicy->permissions = AccessPolicyPermission::$WRITE;
-            $accessPolicy->create();
+            $accessPolicy = new AccessPolicy('NewUploadPolicy');
+            $accessPolicy->setDurationInMinutes(30);
+            $accessPolicy->setPermissions(AccessPolicy::PERMISSIONS_WRITE);
+            $accessPolicy = $mediaServicesWrapper->createAccessPolicy($accessPolicy);
 
             $this->log($accessPolicy);
 
             // アップロードURLを取得する
-            $locator = $mediaContext->getLocatorReference();
-            $locator->accessPolicyId = $accessPolicy->id;
-            $locator->assetId = $asset->id;
-            $locator->startTime = gmdate('m\/d\/Y H:i:s A', strtotime('-5 minutes'));
-            $locator->type = LocatorType::$SAS;
-            $locator->create();
+            $locator = new Locator($asset, $accessPolicy, Locator::TYPE_SAS);
+            $locator->setName('NewUploadLocator');
+            $locator->setStartTime(new \DateTime('now -5 minutes'));
+            $locator = $mediaServicesWrapper->createLocator($locator);
 
             $this->log($locator);
 
             // ファイルのアップロードを実行する
-            $locator->upload(
-                basename($filepath),
-                $filepath
-            );
-
+            $fileName = basename($filepath);
+            $mediaServicesWrapper->uploadAssetFile($locator, $fileName, file_get_contents($filepath));
 
             // アップロード URLの取り消し
-            $locator->delete();
-
-
             // AccessPolicyの削除
-            $accessPolicy->delete();
-
+            $mediaServicesWrapper->deleteLocator($locator);
+            $mediaServicesWrapper->deleteAccessPolicy($accessPolicy);
 
             // ファイル メタデータの生成
-            $asset->createFileInfos();
-
+            $mediaServicesWrapper->createFileInfos($asset);
 
             // エンコードジョブを作成
-            $job = $mediaContext->getJobReference();
-            $job->name = 'process asset_' . $asset->id . '_' . date('YmdHis');
-
             // タスクを追加(スムーズストリーミングに変換)
-            $taskName = 'smooth_streaming';
-            $toAdaptiveBitrateTask = $job->AddNewTask(
-                            $taskName,
-                            'nb:mpid:UUID:70bdc2c3-ebf4-42a9-8542-5afc1e55d217',
-                            'H264 Smooth Streaming 1080p'
+            $mediaProcessor = $mediaServicesWrapper->getLatestMediaProcessor('Windows Azure Media Encoder');
+            $taskBody = '<?xml version="1.0" encoding="utf-8"?><taskBody><inputAsset>JobInputAsset(0)</inputAsset><outputAsset assetCreationOptions="0" assetName="smooth_streaming">JobOutputAsset(0)</outputAsset></taskBody>';
+            $task = new Task(
+                $taskBody,
+                $mediaProcessor->getId(),
+                TaskOptions::NONE
             );
-            $toAdaptiveBitrateTask->AddInputMediaAsset($asset);
-            $toAdaptiveBitrateTask->AddNewOutputMediaAsset(
-                            $taskName,
-                            AssetOptions::$NONE
-            );
+            $task->setConfiguration('H264 Smooth Streaming 1080p');
 
             /*
-            // タスクを追加(アダプティブビットレートに変換)
+             // タスクを追加(アダプティブビットレートに変換)
             $taskName = 'mp4';
             $toAdaptiveBitrateTask = $job->AddNewTask(
                             $taskName,
@@ -258,9 +252,11 @@ class MmsBinProcessActions extends MmsBinActions
             );
             */
 
-            $job->submit();
+            $job = new Job();
+            $job->setName('process asset_' . $asset->getId() . '_' . date('YmdHis'));
+            $job = $mediaServicesWrapper->createJob($job, array($asset), array($task));
         } catch (Exception $e) {
-            $this->log($e);
+            $this->log($e->getMessage());
 
             throw $e;
         }
@@ -316,18 +312,18 @@ class MmsBinProcessActions extends MmsBinActions
 
 $processAction = new MmsBinProcessActions();
 
-$processAction->log('start process ' . gmdate('Y-m-d H:i:s'));
+$processAction->log('start process ' . date('Y-m-d H:i:s'));
 
 $filepath = fgets(STDIN);
-// $filepath = 'C:\Develop\www\workspace\mms\src\uploads\test\054055_1_0.MOV';
+// $filepath = 'C:\Develop\www\workspace\mms\src\uploads\test\054055_2_0.MOV';
 $filepath = str_replace(array("\r\n", "\r", "\n"), '', $filepath);
 
 $filepath = $processAction->createMediaIfNotExist($filepath);
 
 $job = $processAction->createJob($filepath);
 
-$processAction->updateMedia($filepath, $job->id, $job->state);
+$processAction->updateMedia($filepath, $job->getId(), $job->getState());
 
-$processAction->log('end process ' . gmdate('Y-m-d H:i:s'));
+$processAction->log('end process ' . date('Y-m-d H:i:s'));
 
 ?>

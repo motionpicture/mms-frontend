@@ -4,28 +4,43 @@ ini_set('display_errors', 1);
 // デフォルトタイムゾーン
 date_default_timezone_set('Asia/Tokyo');
 
-require_once('MmsDb.php');
+require_once dirname(__FILE__) . '/../lib/MmsDb.php';
+require_once dirname(__FILE__) . '/../vendor/autoload.php';
 
-require_once(dirname(__FILE__) . '/../lib/WindowsAzureMediaServices/WindowsAzureMediaServicesContext.php');
+use WindowsAzure\Common\Internal\MediaServicesSettings;
 
 class MmsBinActions
 {
     public $db;
-    public $mediaContext;
     public $logFile;
+    private static $mediaServicesWrapper = null;
 
     function __construct()
     {
         $this->db = new MmsDb();
 
-        $this->mediaContext = new WindowsAzureMediaServicesContext(
-            'testmvtkms',
-            'Vi3fX70rZKrtk/DM6TRoJ/XpxmkC29LNOzWimE06rx4=',
-            null,
-            null
-        );
-
         $this->logFile = dirname(__FILE__) . '/mms_bin.log';
+    }
+
+    /**
+     * WindowsAzureメディアサービスを取得する
+     *
+     * @return WindowsAzure\MediaServices\Internal\IMediaServices
+     */
+    public function getMediaServicesWrapper()
+    {
+        if (!isset(self::$mediaServicesWrapper)) {
+            // メディアサービス
+            $settings = new MediaServicesSettings(
+                'testmvtkms',
+                'Vi3fX70rZKrtk/DM6TRoJ/XpxmkC29LNOzWimE06rx4=',
+                'https://media.windows.net/API/',
+                'https://wamsprodglobal001acs.accesscontrol.windows.net/v2/OAuth2-13'
+            );
+            self::$mediaServicesWrapper = WindowsAzure\Common\ServicesBuilder::getInstance()->createMediaServicesService($settings);
+        }
+
+        return self::$mediaServicesWrapper;
     }
 
     function log($content)
