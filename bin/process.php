@@ -8,13 +8,37 @@ use WindowsAzure\MediaServices\Models\Job;
 use WindowsAzure\MediaServices\Models\Task;
 use WindowsAzure\MediaServices\Models\TaskOptions;
 
+use WindowsAzure\Common\Internal\Utilities;
+use WindowsAzure\Common\Internal\Resources;
+use WindowsAzure\Common\Internal\Validate;
+use WindowsAzure\Common\Internal\Http\HttpCallContext;
+use WindowsAzure\Common\Models\ServiceProperties;
+use WindowsAzure\Common\Internal\ServiceRestProxy;
+use WindowsAzure\MediaServices\Internal\IMediaServices;
+use WindowsAzure\Common\Internal\Atom\Feed;
+use WindowsAzure\Common\Internal\Atom\Entry;
+use WindowsAzure\Common\Internal\Atom\Content;
+use WindowsAzure\Common\Internal\Atom\AtomLink;
+use WindowsAzure\Blob\Models\BlobType;
+use WindowsAzure\Common\Internal\Http\HttpClient;
+use WindowsAzure\Common\Internal\Http\Url;
+use WindowsAzure\Common\Internal\Http\BatchRequest;
+use WindowsAzure\Common\Internal\Http\BatchResponse;
+use WindowsAzure\MediaServices\Models\StorageAccount;
+
 class MmsBinProcessActions extends MmsBinActions
 {
+    /**
+     * __construct
+     *
+     * @see http://php.net/manual/ja/features.file-upload.common-pitfalls.php
+     */
     function __construct()
     {
         parent::__construct();
 
         set_time_limit(0);
+        ini_set('max_execution_time', 600);
 
         $this->logFile = dirname(__FILE__) . '/process_log';
     }
@@ -33,6 +57,7 @@ class MmsBinProcessActions extends MmsBinActions
         // すでにデータがあるか確認
         $id = pathinfo($filepath, PATHINFO_FILENAME);
         $query = sprintf('SELECT * FROM media WHERE id = \'%s\';', $id);
+        $this->log('$query:' . $query);
         $media = $this->db->querySingle($query, true);
 
         // あれば何もせず終了
@@ -67,10 +92,11 @@ class MmsBinProcessActions extends MmsBinActions
             // トランザクションの開始
             $this->db->exec('BEGIN DEFERRED;');
 
-            $query = sprintf("INSERT INTO media (id, mcode, size, version, user_id, category_id, created_at, updated_at) VALUES ('%s', '%s', '%s', '%s', '%s', '%s', %s, %s)",
+            $query = sprintf("INSERT INTO media (id, mcode, size, extension, version, user_id, category_id, created_at, updated_at) VALUES ('%s', '%s', '%s', '%s', '%s', '%s', '%s', %s, %s);",
                             $id,
                             $mcode,
                             $size,
+                            pathinfo($filepath, PATHINFO_EXTENSION),
                             $version,
                             $userId,
                             $categoryId,
@@ -120,20 +146,23 @@ class MmsBinProcessActions extends MmsBinActions
      *
      * @param string $filepath
      * @return WindowsAzure\MediaServices\Models\Job $job
-     * @throws Exception
      */
     function createJob($filepath)
     {
         $this->log('$filepath:' . $filepath);
 
+        $asset = null;
+        $accessPolicy = null;
+        $locator = null;
+        $isUploaded = false;
         $job = null;
 
         try {
             $mediaServicesWrapper = $this->getMediaServicesWrapper();
 
             // 資産を作成する
-            $asset = new Asset(Asset::OPTIONS_STORAGE_ENCRYPTED);
-            $asset->setName('NewAssets' . date('YmdHis'));
+            $asset = new Asset(Asset::OPTIONS_NONE);
+            $asset->setName(basename($filepath));
             $asset = $mediaServicesWrapper->createAsset($asset);
 
             $this->log($asset);
@@ -153,16 +182,45 @@ class MmsBinProcessActions extends MmsBinActions
             $locator = $mediaServicesWrapper->createLocator($locator);
 
             $this->log($locator);
+        } catch (Exception $e) {
+            $this->log($e->getMessage());
+        }
 
+        try {
             // ファイルのアップロードを実行する
             $fileName = basename($filepath);
-            $mediaServicesWrapper->uploadAssetFile($locator, $fileName, file_get_contents($filepath));
+            $this->uploadAssetFile($locator, $fileName, $filepath);
+//             $mediaServicesWrapper->uploadAssetFile($locator, $fileName, file_get_contents($filepath));
 
+            $isUploaded = true;
+        } catch (Exception $e) {
+            $this->log($e->getMessage());
+        }
+
+        try {
             // アップロード URLの取り消し
             // AccessPolicyの削除
-            $mediaServicesWrapper->deleteLocator($locator);
-            $mediaServicesWrapper->deleteAccessPolicy($accessPolicy);
+            if (!is_null($locator)) {
+                $mediaServicesWrapper->deleteLocator($locator);
+            }
+            if (!is_null($accessPolicy)) {
+                $mediaServicesWrapper->deleteAccessPolicy($accessPolicy);
+            }
 
+            // アップロード失敗の場合、アセットの削除
+            if (!$isUploaded && !is_null($asset)) {
+                $mediaServicesWrapper->deleteAsset($asset);
+            }
+        } catch (Exception $e) {
+            $this->log($e->getMessage());
+        }
+
+        // アップロード失敗していれば終了
+        if (!$isUploaded) {
+            return $job;
+        }
+
+        try {
             // ファイル メタデータの生成
             $mediaServicesWrapper->createFileInfos($asset);
 
@@ -257,13 +315,117 @@ class MmsBinProcessActions extends MmsBinActions
             $job = $mediaServicesWrapper->createJob($job, array($asset), array($task));
         } catch (Exception $e) {
             $this->log($e->getMessage());
-
             throw $e;
         }
 
         $this->log($job);
 
         return $job;
+    }
+
+    /**
+     * Upload asset file to storage.
+     *
+     * @param WindowsAzure\MediaServices\Models\Locator $locator Write locator for
+     * file upload
+     *
+     * @param string                                    $name    Uploading filename
+     * @param string                                    $body    Uploading content
+     *
+     * @return none
+     */
+    private function uploadAssetFile($locator, $name, $path)
+    {
+        $url = $locator->getBaseUri() . '/' .  $name . $locator->getContentAccessComponent();
+        $headers = array(
+            'Content-Type: application/octet-stream',
+            'x-ms-version: 2011-08-18',
+            'x-ms-date: ' . gmdate('Y-m-d'),
+            'x-ms-blob-type: BlockBlob',
+            'Expect: 100-continue'
+        );
+
+        $fp = fopen($path, 'rb');
+        if ($fp === false) {
+            $egl = error_get_last();
+            $e = new Exception('ファイルを開くことができませんでした' . $egl['message']);
+            throw $e;
+        }
+        $ch = curl_init();
+        $options = [
+            CURLOPT_CUSTOMREQUEST  => 'PUT',
+            CURLOPT_URL            => $url,
+            CURLOPT_HTTPHEADER     => $headers,
+            CURLOPT_PUT            => 1,
+            CURLOPT_INFILE         => $fp,
+            CURLOPT_INFILESIZE     => filesize($path),
+            CURLOPT_RETURNTRANSFER => 1,
+            CURLOPT_BINARYTRANSFER => 1,
+            CURLOPT_SSL_VERIFYPEER => false,
+            CURLOPT_SSLVERSION     => 3,
+            CURLOPT_CONNECTTIMEOUT => 300,
+            CURLOPT_TIMEOUT        => 0
+        ];
+        curl_setopt_array($ch, $options);
+
+        $result = curl_exec($ch);
+
+        if (!curl_errno($ch)) {
+            $info = curl_getinfo($ch);
+
+            if ($info['http_code'] != '201') {
+                $this->log($info);
+                $object = simplexml_load_string($result);
+                $this->log($object);
+
+                $e = new Exception('upload error: ' . $object->Code . ' ' . $object->Message);
+                curl_close($ch);
+                throw $e;
+            }
+
+            curl_close($ch);
+        } else {
+            $e = new Exception(curl_error($ch));
+            curl_close($ch);
+            throw $e;
+        }
+        fclose($fp);
+
+        /*
+        $body = file_get_contents($path);
+        Validate::isA(
+            $locator,
+            'WindowsAzure\Mediaservices\Models\Locator',
+            'locator'
+        );
+        Validate::isString($name, 'name');
+        Validate::notNull($body, 'body');
+
+        $method     = Resources::HTTP_PUT;
+        $urlFile    = $locator->getBaseUri() . '/' . $name;
+        $url        = new Url($urlFile . $locator->getContentAccessComponent());
+
+        $filters    = array();
+        $statusCode = Resources::STATUS_CREATED;
+        $headers    = array(
+            Resources::CONTENT_TYPE   => Resources::BINARY_FILE_TYPE,
+            Resources::X_MS_VERSION   => Resources::STORAGE_API_LATEST_VERSION,
+            Resources::X_MS_BLOB_TYPE => BlobType::BLOCK_BLOB,
+//             'x-ms-date'               => gmdate('Y-m-d'),
+//             'Content-Length'          => filesize($path),
+//             'Expect'                  => '100-continue',
+        );
+
+        $httpClient = new HttpClient('', dirname(__FILE__) . '/../lib/cacert.pem');
+        $httpClient->setConfig([
+            'connect_timeout'   => 1800,
+        ]);
+        $httpClient->setMethod($method);
+        $httpClient->setHeaders($headers);
+        $httpClient->setExpectedStatusCode($statusCode);
+        $httpClient->setBody($body);
+        $httpClient->send($filters, $url);
+        */
     }
 
     /**
@@ -310,19 +472,20 @@ class MmsBinProcessActions extends MmsBinActions
     }
 }
 
-$processAction = new MmsBinProcessActions();
-
 $processAction->log('start process ' . date('Y-m-d H:i:s'));
 
+$processAction = new MmsBinProcessActions();
+
 $filepath = fgets(STDIN);
-// $filepath = 'C:\Develop\www\workspace\mms\src\uploads\test\054055_2_0.MOV';
 $filepath = str_replace(array("\r\n", "\r", "\n"), '', $filepath);
 
 $filepath = $processAction->createMediaIfNotExist($filepath);
 
 $job = $processAction->createJob($filepath);
 
-$processAction->updateMedia($filepath, $job->getId(), $job->getState());
+if (!is_null($job)) {
+    $processAction->updateMedia($filepath, $job->getId(), $job->getState());
+}
 
 $processAction->log('end process ' . date('Y-m-d H:i:s'));
 

@@ -14,12 +14,18 @@ class MmsBinActions
     public $db;
     public $logFile;
     private static $mediaServicesWrapper = null;
+    private static $isDev = false;
 
     function __construct()
     {
         $this->db = new MmsDb();
 
         $this->logFile = dirname(__FILE__) . '/mms_bin.log';
+
+        $options = getopt('', array('env:'));
+        if (isset($options['env']) && $options['env'] == 'dev') {
+            self::$isDev = true;
+        }
     }
 
     /**
@@ -34,8 +40,8 @@ class MmsBinActions
             $settings = new MediaServicesSettings(
                 'testmvtkms',
                 'Vi3fX70rZKrtk/DM6TRoJ/XpxmkC29LNOzWimE06rx4=',
-                'https://media.windows.net/API/',
-                'https://wamsprodglobal001acs.accesscontrol.windows.net/v2/OAuth2-13'
+                WindowsAzure\Common\Internal\Resources::MEDIA_SERVICES_URL,
+                WindowsAzure\Common\Internal\Resources::MEDIA_SERVICES_OAUTH_URL
             );
             self::$mediaServicesWrapper = WindowsAzure\Common\ServicesBuilder::getInstance()->createMediaServicesService($settings);
         }
@@ -45,7 +51,17 @@ class MmsBinActions
 
     function log($content)
     {
-        file_put_contents($this->logFile, print_r($content, true) . "\n", FILE_APPEND);
+        $log = print_r($content, true) . "\n";
+        file_put_contents($this->logFile, $log, FILE_APPEND);
+
+        if ($this->getIsDev()) {
+            echo $log;
+        }
+    }
+
+    public function getIsDev()
+    {
+        return self::$isDev;
     }
 
     function debug($content)

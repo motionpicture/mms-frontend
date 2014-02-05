@@ -17,6 +17,7 @@ CREATE TABLE IF NOT EXISTS `media` (
     `category_id` integer NOT NULL,
     `version` varchar(100) NOT NULL DEFAULT '0',
     `size` integer DEFAULT NULL,
+    `extension` varchar(100) NOT NULL,
     `user_id` varchar(100) NOT NULL,
     `job_id` integer DEFAULT NULL,
     `job_state` char(1) DEFAULT NULL,

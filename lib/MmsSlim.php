@@ -5,13 +5,12 @@ date_default_timezone_set('Asia/Tokyo');
 require_once('MmsDb.php');
 require_once dirname(__FILE__) . '/../vendor/autoload.php';
 
-use WindowsAzure\Common\ServicesBuilder;
-use WindowsAzure\Common\ServiceException;
+use WindowsAzure\Common\Internal\MediaServicesSettings;
 
 class MmsSlim extends \Slim\Slim
 {
     public $db;
-    public $categories;
+    private static $mediaServicesWrapper = null;
 
     /**
      * Constructor
@@ -22,21 +21,6 @@ class MmsSlim extends \Slim\Slim
         parent::__construct($userSettings);
 
         $this->db = new MmsDb();
-
-        // カテゴリーを取得
-        $categories = array();
-        try {
-            $query = 'SELECT * FROM category';
-            $result = $this->db->query($query);
-            while($res = $result->fetchArray(SQLITE3_ASSOC)){
-                $categories[$res['id']] = $res['name'];
-            }
-        } catch (Exception $e) {
-            $this->log($e);
-
-            throw($e);
-        }
-        $this->categories = $categories;
 
         // DBにベーシック認証ユーザーが存在しなかれば登録
         $query = sprintf('SELECT * FROM user WHERE id = \'%s\';',
@@ -54,6 +38,27 @@ class MmsSlim extends \Slim\Slim
         }
 
         $this->log->debug(print_r($_SERVER, true));
+    }
+
+    /**
+     * WindowsAzureメディアサービスを取得する
+     *
+     * @return WindowsAzure\MediaServices\Internal\IMediaServices
+     */
+    public function getMediaServicesWrapper()
+    {
+        if (!isset(self::$mediaServicesWrapper)) {
+            // メディアサービス
+            $settings = new MediaServicesSettings(
+                'testmvtkms',
+                'Vi3fX70rZKrtk/DM6TRoJ/XpxmkC29LNOzWimE06rx4=',
+                'https://media.windows.net/API/',
+                'https://wamsprodglobal001acs.accesscontrol.windows.net/v2/OAuth2-13'
+            );
+            self::$mediaServicesWrapper = WindowsAzure\Common\ServicesBuilder::getInstance()->createMediaServicesService($settings);
+        }
+
+        return self::$mediaServicesWrapper;
     }
 }
 ?>

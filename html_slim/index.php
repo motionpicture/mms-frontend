@@ -27,12 +27,26 @@ $app->get('/media/new', function () use ($app) {
         'category_id' => ''
     ];
 
+    // カテゴリーを取得
+    $categories = array();
+    try {
+        $query = 'SELECT * FROM category';
+        $result = $app->db->query($query);
+        while($res = $result->fetchArray(SQLITE3_ASSOC)){
+            $categories[$res['id']] = $res['name'];
+        }
+    } catch (Exception $e) {
+        $this->log($e);
+
+        throw($e);
+    }
+
     $app->render(
         'media/new.php',
         [
             'message'    => $message,
             'defaults'   => $defaults,
-            'categories' => $app->categories
+            'categories' => $categories
         ]
     );
 });
@@ -43,6 +57,20 @@ $app->post('/media/new', function () use ($app) {
         'mcode' => '',
         'category_id' => ''
     ];
+
+    // カテゴリーを取得
+    $categories = array();
+    try {
+        $query = 'SELECT * FROM category';
+        $result = $app->db->query($query);
+        while($res = $result->fetchArray(SQLITE3_ASSOC)){
+            $categories[$res['id']] = $res['name'];
+        }
+    } catch (Exception $e) {
+        $this->log($e);
+
+        throw($e);
+    }
 
     $app->log->debug(print_r($_POST, true));
 
@@ -63,7 +91,7 @@ $app->post('/media/new', function () use ($app) {
             [
                 'message'    => $message,
                 'defaults'   => $defaults,
-                'categories' => $app->categories
+                'categories' => $categories
             ]
         );
     }
@@ -82,14 +110,13 @@ $app->post('/media/new', function () use ($app) {
         // 作品コード、カテゴリー、バージョンからIDを生成
         $id = implode('_', array($_POST['mcode'], $_POST['category_id'], $version));
 
-        $isSaved = false;
-
         $query = sprintf(
-            "INSERT INTO media (id, mcode, version, size, user_id, category_id, created_at, updated_at) VALUES ('%s', '%s', '%s', '%s', '%s', '%s', %s, %s)",
+            "INSERT INTO media (id, mcode, version, size, extension, user_id, category_id, created_at, updated_at) VALUES ('%s', '%s', '%s', '%s', '%s', '%s', '%s', %s, %s);",
             $id,
             $_POST['mcode'],
             $version,
             $_FILES['file']['size'],
+            pathinfo($_FILES['file']['name'], PATHINFO_EXTENSION),
             $_SERVER['PHP_AUTH_USER'],
             $_POST['category_id'],
             'datetime(\'now\', \'localtime\')',
@@ -101,6 +128,8 @@ $app->post('/media/new', function () use ($app) {
             $e = new Exception('SQLの実行でエラーが発生しました' . $egl['message']);
             throw $e;
         }
+
+        $app->db->exec('COMMIT;');
 
         $uploaddir = dirname(__FILE__) . sprintf('/../uploads/%s/', $_SERVER['PHP_AUTH_USER']);
         // なければ作成
@@ -121,8 +150,6 @@ $app->post('/media/new', function () use ($app) {
 
         chmod($uploadfile, 0644);
 
-        $isSaved = true;
-        $app->db->exec('COMMIT;');
         $app->redirect('/medias');
     } catch (Exception $e) {
         $app->log->debug(print_r($e, true));
@@ -141,8 +168,7 @@ $app->get('/medias', function () use ($app) {
 
     try {
         // ユーザーのメディアを取得
-        $query = sprintf('SELECT * FROM media WHERE user_id = \'%s\' ORDER BY updated_at DESC;',
-                        $_SERVER['PHP_AUTH_USER']);
+        $query = 'SELECT media.*, category.name AS category_name FROM media INNER JOIN category ON media.category_id = category.id ORDER BY updated_at DESC;';
         $result = $app->db->query($query);
         while ($res = $result->fetchArray(SQLITE3_ASSOC)) {
             $medias[] = $res;
@@ -158,8 +184,7 @@ $app->get('/medias', function () use ($app) {
     $app->render(
         'media/index.php',
         [
-            'medias'     => $medias,
-            'categories' => $app->categories
+            'medias'     => $medias
         ]
     );
 })->name('medias');;
@@ -177,9 +202,7 @@ $app->get('/media/:id', function ($id) use ($app) {
     ];
 
     try {
-        $query = sprintf('SELECT * FROM media WHERE id = \'%s\' AND user_id = \'%s\';',
-                         $id,
-                         $_SERVER['PHP_AUTH_USER']);
+        $query = sprintf('SELECT media.*, category.name AS category_name FROM media INNER JOIN category ON media.category_id = category.id WHERE media.id = \'%s\';', $id);
         $media = $app->db->querySingle($query, true);
 
         if (isset($media['id'])) {
@@ -240,11 +263,81 @@ $app->get('/media/:id', function ($id) use ($app) {
         'media/show.php',
         [
             'media' => $media,
-            'urls' => $urls,
-            'categories' => $app->categories
+            'urls' => $urls
         ]
     );
 })->name('media');
+
+/**
+ * メディアダウンロード
+ */
+$app->get('/media/:id/download', function ($id) use ($app) {
+    $app->log->debug($id);
+
+    try {
+        $query = sprintf('SELECT * FROM media WHERE id = \'%s\';', $id);
+        $media = $app->db->querySingle($query, true);
+
+        if (isset($media['id']) && $media['job_id']) {
+            $mediaServicesWrapper = $app->getMediaServicesWrapper();
+
+            // 読み取りアクセス許可を持つAccessPolicyの作成
+            $accessPolicy = new WindowsAzure\MediaServices\Models\AccessPolicy('DownloadPolicy');
+            $accessPolicy->setDurationInMinutes(10);
+            $accessPolicy->setPermissions(WindowsAzure\MediaServices\Models\AccessPolicy::PERMISSIONS_READ);
+            $accessPolicy = $mediaServicesWrapper->createAccessPolicy($accessPolicy);
+
+            // ジョブのアセットを取得
+            $assets = $mediaServicesWrapper->getJobInputMediaAssets($media['job_id']);
+
+            $app->log->debug(print_r($assets, true));
+
+            $asset = $assets[0];
+
+            // 既存のSASロケーターを全て削除
+            // Server does not support setting more than 5 shared access policy identifiers on a single container..
+//             $locators = $mediaServicesWrapper->getAssetLocators($asset);
+//             foreach ($locators as $locator) {
+//                 $mediaServicesWrapper->deleteLocator($locator);
+//             }
+
+            // ダウンロードURLの作成
+            $locator = new WindowsAzure\MediaServices\Models\Locator(
+                $asset,
+                $accessPolicy,
+                WindowsAzure\MediaServices\Models\Locator::TYPE_SAS
+            );
+            $locator->setName('DownloadLocator_' . $asset->getId());
+            $locator->setStartTime(new \DateTime('now -5 minutes'));
+            $locator = $mediaServicesWrapper->createLocator($locator);
+
+            $app->log->debug(print_r($locator, true));
+
+            $fileName = sprintf('%s.%s', $media['id'], $media['extension']);
+            $path = sprintf('%s/%s%s',
+                            $locator->getBaseUri(),
+                            $fileName,
+                            $locator->getContentAccessComponent());
+
+            header('Content-Disposition: attachment; filename="' . $fileName . '"');
+            header('Content-Type: application/octet-stream');
+            if (!readfile($path)) {
+                throw(new Exception("Cannot read the file(".$path.")"));
+            }
+
+            // ロケーター削除
+            $mediaServicesWrapper->deleteLocator($locator);
+
+            exit;
+        }
+    } catch (Exception $e) {
+        $app->log->debug(print_r($e, true));
+
+        throw($e);
+    }
+
+    throw(new Exception('予期せぬエラー'));
+})->name('media_download');
 
 /**
  * アカウント編集

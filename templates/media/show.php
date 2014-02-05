@@ -15,7 +15,7 @@
             </tr>
             <tr>
                 <td>カテゴリー</td>
-                <td><?php echo $categories[$media['category_id']] ?></td>
+                <td><?php echo $media['category_name'] ?></td>
             </tr>
             <tr>
                 <td>バージョン</td>
