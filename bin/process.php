@@ -1,6 +1,8 @@
 <?php
 require_once('MmsBinActions.php');
 
+use WindowsAzure\Common\ServiceException;
+
 use WindowsAzure\MediaServices\Models\Asset;
 use WindowsAzure\MediaServices\Models\AccessPolicy;
 use WindowsAzure\MediaServices\Models\Locator;
@@ -26,6 +28,11 @@ use WindowsAzure\Common\Internal\Http\BatchRequest;
 use WindowsAzure\Common\Internal\Http\BatchResponse;
 use WindowsAzure\MediaServices\Models\StorageAccount;
 
+use WindowsAzure\Blob\Models\Block;
+use WindowsAzure\Blob\Models\BlobBlockType;
+
+define('CHUNK_SIZE', 1024 * 1024); // Block Size = 1 MB
+
 class MmsBinProcessActions extends MmsBinActions
 {
     /**
@@ -39,6 +46,7 @@ class MmsBinProcessActions extends MmsBinActions
 
         set_time_limit(0);
         ini_set('max_execution_time', 600);
+        ini_set('memory_limit', '500000000M');
 
         $this->logFile = dirname(__FILE__) . '/process_log';
     }
@@ -167,6 +175,8 @@ class MmsBinProcessActions extends MmsBinActions
 
             $this->log($asset);
 
+            /*
+            // ストレージサービスを使用してアップロードする場合、このプロセスは不要
             // AccessPolicy を設定する
             $accessPolicy = new AccessPolicy('NewUploadPolicy');
             $accessPolicy->setDurationInMinutes(30);
@@ -182,6 +192,7 @@ class MmsBinProcessActions extends MmsBinActions
             $locator = $mediaServicesWrapper->createLocator($locator);
 
             $this->log($locator);
+            */
         } catch (Exception $e) {
             $this->log($e->getMessage());
         }
@@ -189,8 +200,10 @@ class MmsBinProcessActions extends MmsBinActions
         try {
             // ファイルのアップロードを実行する
             $fileName = basename($filepath);
-            $this->uploadAssetFile($locator, $fileName, $filepath);
 //             $mediaServicesWrapper->uploadAssetFile($locator, $fileName, file_get_contents($filepath));
+//             $this->uploadAssetFile($locator, $fileName, $filepath);
+//             $this->uploadAssetFile2($locator, $fileName, $filepath);
+            $this->upload(basename($asset->getUri()), $fileName, $filepath);
 
             $isUploaded = true;
         } catch (Exception $e) {
@@ -329,8 +342,8 @@ class MmsBinProcessActions extends MmsBinActions
      * @param WindowsAzure\MediaServices\Models\Locator $locator Write locator for
      * file upload
      *
-     * @param string                                    $name    Uploading filename
-     * @param string                                    $body    Uploading content
+     * @param string $name    Uploading filename
+     * @param string $path    Uploading content path
      *
      * @return none
      */
@@ -340,7 +353,6 @@ class MmsBinProcessActions extends MmsBinActions
         $headers = array(
             'Content-Type: application/octet-stream',
             'x-ms-version: 2011-08-18',
-            'x-ms-date: ' . gmdate('Y-m-d'),
             'x-ms-blob-type: BlockBlob',
             'Expect: 100-continue'
         );
@@ -351,12 +363,10 @@ class MmsBinProcessActions extends MmsBinActions
             $e = new Exception('ファイルを開くことができませんでした' . $egl['message']);
             throw $e;
         }
-        $ch = curl_init();
+        $ch = curl_init($url);
         $options = [
-            CURLOPT_CUSTOMREQUEST  => 'PUT',
-            CURLOPT_URL            => $url,
             CURLOPT_HTTPHEADER     => $headers,
-            CURLOPT_PUT            => 1,
+            CURLOPT_PUT            => true,
             CURLOPT_INFILE         => $fp,
             CURLOPT_INFILESIZE     => filesize($path),
             CURLOPT_RETURNTRANSFER => 1,
@@ -390,8 +400,21 @@ class MmsBinProcessActions extends MmsBinActions
             throw $e;
         }
         fclose($fp);
+    }
 
-        /*
+    /**
+     * Upload asset file to storage.
+     *
+     * @param WindowsAzure\MediaServices\Models\Locator $locator Write locator for
+     * file upload
+     *
+     * @param string $name    Uploading filename
+     * @param string $path    Uploading content path
+     *
+     * @return none
+     */
+    private function uploadAssetFile2($locator, $name, $path)
+    {
         $body = file_get_contents($path);
         Validate::isA(
             $locator,
@@ -411,21 +434,81 @@ class MmsBinProcessActions extends MmsBinActions
             Resources::CONTENT_TYPE   => Resources::BINARY_FILE_TYPE,
             Resources::X_MS_VERSION   => Resources::STORAGE_API_LATEST_VERSION,
             Resources::X_MS_BLOB_TYPE => BlobType::BLOCK_BLOB,
-//             'x-ms-date'               => gmdate('Y-m-d'),
-//             'Content-Length'          => filesize($path),
-//             'Expect'                  => '100-continue',
         );
 
-        $httpClient = new HttpClient('', dirname(__FILE__) . '/../lib/cacert.pem');
-        $httpClient->setConfig([
-            'connect_timeout'   => 1800,
-        ]);
+        $httpClient = new HttpClient();
+//         $httpClient->setConfig([
+//                         'connect_timeout'   => 1800,
+//                         ]);
         $httpClient->setMethod($method);
         $httpClient->setHeaders($headers);
         $httpClient->setExpectedStatusCode($statusCode);
         $httpClient->setBody($body);
         $httpClient->send($filters, $url);
-        */
+    }
+
+    /**
+     * ストレージサービスを使用してアップロードする
+     *
+     * @param string $containerName    コンテナー名
+     * @param string $name             ブロブ名
+     * @param string $path             Uploading content path
+     *
+     * @return none
+     */
+    private function upload($containerName, $blobName, $path)
+    {
+        try {
+            $connectionString =  sprintf('DefaultEndpointsProtocol=%s;AccountName=%s;AccountKey=%s',
+                                   'http',
+                                   'testmvtkmsst',
+                                   '+aoUiBttXAZovixNHuNxnkNaMbj2ZWDBzJvkG+FQ0EMmwbGtvEgryoqlQDkq+OxmQomRDQCKZitgeGfAk299Lg==');
+            $blobRestProxy = WindowsAzure\Common\ServicesBuilder::getInstance()->createBlobService($connectionString);
+        } catch(ServiceException $e) {
+        }
+
+        try {
+            $content = fopen($path, 'rb');
+            $counter = 1;
+            $blockIds = [];
+            while (!feof($content)) {
+                $blockId = str_pad($counter, 6, '0', STR_PAD_LEFT);
+                $block = new Block();
+                $block->setBlockId(base64_encode($blockId));
+                $block->setType(BlobBlockType::UNCOMMITTED_TYPE);
+                array_push($blockIds, $block);
+//                 echo $blockId . " | " . base64_encode($blockId) . " | " . count($blockIds);
+//                 echo "\n";
+//                 echo "-----------------------------------------";
+                $data = fread($content, CHUNK_SIZE);
+//                 echo "Read " . strlen($data) . " of data from file";
+//                 echo "\n";
+//                 echo "-----------------------------------------";
+//                 echo "\n";
+//                 echo "-----------------------------------------";
+//                 echo "Uploading block #: " . $blockId + " into blob storage. Please wait.";
+//                 echo "-----------------------------------------";
+//                 echo "\n";
+                $blobRestProxy->createBlobBlock($containerName, $blobName, base64_encode($blockId), $data);
+//                 echo "Uploaded block: " . $blockId . " into blob storage. Please wait";
+//                 echo "\n";
+//                 echo "-----------------------------------------";
+//                 echo "\n";
+                $counter++;
+            }
+            fclose($content);
+//             echo "Now committing block list. Please wait.";
+//             echo " -----------------------------------------";
+//             echo " \n ";
+//             echo "hello";
+            $blobRestProxy->commitBlobBlocks($containerName, $blobName, $blockIds);
+//             echo " -----------------------------------------";
+//             echo " \n ";
+//             echo "Blob created successfully.";
+        } catch (Exception $e) {
+            // @see http://msdn.microsoft.com/ja-jp/library/windowsazure/dd179439.aspx
+            throw($e);
+        }
     }
 
     /**
@@ -472,9 +555,9 @@ class MmsBinProcessActions extends MmsBinActions
     }
 }
 
-$processAction->log('start process ' . date('Y-m-d H:i:s'));
-
 $processAction = new MmsBinProcessActions();
+
+$processAction->log('start process ' . date('Y-m-d H:i:s'));
 
 $filepath = fgets(STDIN);
 $filepath = str_replace(array("\r\n", "\r", "\n"), '', $filepath);
