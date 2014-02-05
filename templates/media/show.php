@@ -23,7 +23,7 @@
             </tr>
             <tr>
                 <td>サイズ</td>
-                <td><?php echo $media['size'] ?></td>
+                <td><?php echo $media['size'] ?>バイト</td>
             </tr>
             <tr>
                 <td>登録者</td>
@@ -35,7 +35,7 @@
             </tr>
             <tr>
                 <td>ジョブ進捗</td>
-                <td><?php echo $media['job_state'] ?></td>
+                <td><?php echo $jobState::toString($media['job_state']) ?></td>
             </tr>
             <tr>
                 <td>ジョブ開始日時</td>

@@ -1,6 +1,8 @@
 <?php
 require_once dirname(__FILE__) . '/../lib/MmsSlim.php';
 
+use WindowsAzure\MediaServices\Models\Job;
+
 $app = new \MmsSlim([
     'debug'       => true,
     'log.enable' => true,
@@ -166,9 +168,31 @@ $app->post('/media/new', function () use ($app) {
 $app->get('/medias', function () use ($app) {
     $medias = [];
 
+    $searchConditions = [
+        'word' => '',
+        'job_state' => JobState::getAll(),
+        'category' => []
+    ];
+
     try {
         // ユーザーのメディアを取得
-        $query = 'SELECT media.*, category.name AS category_name FROM media INNER JOIN category ON media.category_id = category.id ORDER BY updated_at DESC;';
+        $query = 'SELECT media.*, category.name AS category_name FROM media'
+                . ' INNER JOIN category ON media.category_id = category.id'
+                . ' WHERE media.id IS NOT NULL';
+
+        // 検索条件を追加
+        if (isset($_GET['word']) && $_GET['word'] != '') {
+            $searchConditions['word'] = $_GET['word'];
+        }
+
+        if (isset($_GET['job_state']) && count($_GET['job_state']) > 0) {
+            $searchConditions['job_state'] = $_GET['job_state'];
+        }
+
+        $query .= sprintf(' AND media.id LIKE \'%%%s%%\'', $searchConditions['word']);
+        $query .= sprintf(' AND media.job_state IN (%s)', implode(',', $searchConditions['job_state']));
+        $query .= ' ORDER BY updated_at DESC;';
+
         $result = $app->db->query($query);
         while ($res = $result->fetchArray(SQLITE3_ASSOC)) {
             $medias[] = $res;
@@ -184,7 +208,9 @@ $app->get('/medias', function () use ($app) {
     $app->render(
         'media/index.php',
         [
-            'medias'     => $medias
+            'medias'     => $medias,
+            'jobState'   => new JobState,
+            'searchConditions' => $searchConditions
         ]
     );
 })->name('medias');;
@@ -263,7 +289,8 @@ $app->get('/media/:id', function ($id) use ($app) {
         'media/show.php',
         [
             'media' => $media,
-            'urls' => $urls
+            'urls' => $urls,
+            'jobState'   => new JobState,
         ]
     );
 })->name('media');
@@ -428,4 +455,37 @@ $app->post('/user/edit', function () use ($app) {
 });
 
 $app->run();
+
+class JobState
+{
+    public static function getAll(){
+        return [
+            Job::STATE_QUEUED,
+            Job::STATE_SCHEDULED,
+            Job::STATE_PROCESSING,
+            Job::STATE_FINISHED,
+            Job::STATE_ERROR,
+            Job::STATE_CANCELED,
+            Job::STATE_CANCELING
+        ];
+    }
+
+    public static function toString($state){
+        if ($state == Job::STATE_QUEUED) {
+            return '待機中';
+        } else if($state == Job::STATE_SCHEDULED) {
+            return 'スケジュール済み';
+        } else if($state == Job::STATE_PROCESSING) {
+            return '進行中';
+        } else if($state == Job::STATE_FINISHED) {
+            return '完了';
+        } else if($state == Job::STATE_ERROR) {
+            return 'エラー';
+        } else if($state == Job::STATE_CANCELED) {
+            return 'キャンセル済み';
+        } else if($state == Job::STATE_CANCELING) {
+            return 'キャンセル中';
+        }
+    }
+}
 ?>
