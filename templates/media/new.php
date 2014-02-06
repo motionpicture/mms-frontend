@@ -1,38 +1,41 @@
 ﻿<?php require dirname(__FILE__) . '/../header.php' ?>
 
-<section class="page-content">
-    <h2>メディア登録</h2>
+<div class="container-fluid">
+    <div class="row">
+        <div class="main">
+            <h1 class="page-header">メディア登録</h1>
 
-    <?php if ($message) { ?><p class="error" style="color: #FF0000;"><?php echo $message ?></p><?php } ?>
+            <?php if ($message) { ?><p class="error" style="color: #FF0000;"><?php echo $message ?></p><?php } ?>
 
-    <form enctype="multipart/form-data" method="POST">
-        <input type="hidden" name="MAX_FILE_SIZE" value="1000000000" />
+            <form class="navbar-form" role="search" enctype="multipart/form-data" method="POST">
+                <input type="hidden" name="MAX_FILE_SIZE" value="1000000000" />
 
-        <div class="field">
-            <p>作品コード:</p>
-            <input type="text" name="mcode" value="<?php echo $defaults['mcode'] ?>">
+                <div class="form-group">
+                    <p>
+                        <input type="text" name="mcode" class="form-control" value="<?php echo $defaults['mcode'] ?>" placeholder="作品コード">
+                    </p>
+
+                    <p>
+                        <select name="category_id">
+                        <option value ="">カテゴリーを選択してください</option>
+                        <?php foreach ($categories as $id => $name) { ?>
+                        <option value ="<?php echo $id ?>"<?php if ($defaults['category_id'] == $id) {echo ' selected';} ?>><?php echo $name ?></option>
+                        <?php } ?>
+                        </select>
+                    </p>
+
+                    <p>
+                        <input type="file" name="file" value="">
+                    </p>
+
+                    <p>
+                        <button type="submit" class="btn btn-default">登録</button>
+                    <p>
+                </div>
+
+            </form>
         </div>
-
-        <div class="field">
-            <p>カテゴリー:</p>
-            <select name="category_id">
-            <option value ="">カテゴリーを選択してください</option>
-            <?php foreach ($categories as $id => $name) { ?>
-            <option value ="<?php echo $id ?>"<?php if ($defaults['category_id'] == $id) {echo ' selected';} ?>><?php echo $name ?></option>
-            <?php } ?>
-            </select>
-        </div>
-
-        <div class="field">
-            <p>ファイル:</p>
-            <input type="file" name="file" value="">
-        </div>
-
-        <div class="field">
-            <input type="submit" value="登録">
-        </div>
-    </form>
-
-</section><!-- /.page-content -->
+    </div>
+</div>
 
 <?php require dirname(__FILE__) . '/../footer.php' ?>

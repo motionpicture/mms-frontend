@@ -1,21 +1,28 @@
 ﻿<?php require dirname(__FILE__) . '/../header.php' ?>
 
-<section class="page-content">
-    <h2>アカウント編集</h2>
+<div class="container-fluid">
+    <div class="row">
+        <div class="main">
+            <h1 class="page-header">アカウント編集</h1>
 
-    <?php if ($message) { ?><p class="error" style="color: #FF0000;"><?php echo $message ?></p><?php } ?>
+            <?php if ($message) { ?><p class="error" style="color: #FF0000;"><?php echo $message ?></p><?php } ?>
 
-    <form enctype="multipart/form-data" method="POST">
-        <div class="field">
-            <p>メールアドレス</p>
-            <input type="text" name="email" value="<?php echo $defaults['email'] ?>">
+            <form class="navbar-form" role="search" enctype="multipart/form-data" method="POST">
+                <input type="hidden" name="MAX_FILE_SIZE" value="1000000000" />
+
+                <div class="form-group">
+                    <p>
+                        <input type="text" name="email" class="form-control" value="<?php echo $defaults['email'] ?>" placeholder="メールアドレス">
+                    </p>
+
+                    <p>
+                        <button type="submit" class="btn btn-default">登録</button>
+                    <p>
+                </div>
+
+            </form>
         </div>
-
-        <div class="field">
-            <input type="submit" value="登録">
-        </div>
-    </form>
-
-</section><!-- /.page-content -->
+    </div>
+</div>
 
 <?php require dirname(__FILE__) . '/../footer.php' ?>

@@ -16,7 +16,7 @@ $app = new \MmsSlim([
  * HOME
  */
 $app->get('/', function () use ($app) {
-    $app->redirect('/medias');
+    $app->redirect('/medias', 303);
 })->name('homepage');
 
 /**
@@ -98,6 +98,7 @@ $app->post('/media/new', function () use ($app) {
         );
     }
 
+    $isSaved = false;
     try {
         // トランザクションの開始
         $app->db->exec('BEGIN DEFERRED;');
@@ -152,13 +153,17 @@ $app->post('/media/new', function () use ($app) {
 
         chmod($uploadfile, 0644);
 
-        $app->redirect('/medias');
+        $isSaved = true;
     } catch (Exception $e) {
         $app->log->debug(print_r($e, true));
 
         // ロールバック
         $app->db->exec('ROLLBACK;');
         throw $e;
+    }
+
+    if ($isSaved) {
+        $app->redirect('medias', 303);
     }
 });
 
@@ -169,10 +174,23 @@ $app->get('/medias', function () use ($app) {
     $medias = [];
 
     $searchConditions = [
-        'word' => '',
+        'word'      => '',
         'job_state' => JobState::getAll(),
-        'category' => []
+        'category'  => []
     ];
+
+    $categories = [];
+    try {
+        // ユーザーのメディアを取得
+        $query = 'SELECT * FROM category ORDER BY id ASC;';
+
+        $result = $app->db->query($query);
+        while ($res = $result->fetchArray(SQLITE3_ASSOC)) {
+            $categories[] = $res;
+            $searchConditions['category'][] = $res['id'];
+        }
+    } catch (Exception $e) {
+    }
 
     try {
         // ユーザーのメディアを取得
@@ -183,14 +201,19 @@ $app->get('/medias', function () use ($app) {
         // 検索条件を追加
         if (isset($_GET['word']) && $_GET['word'] != '') {
             $searchConditions['word'] = $_GET['word'];
+            $query .= sprintf(' AND media.id LIKE \'%%%s%%\'', $searchConditions['word']);
         }
 
         if (isset($_GET['job_state']) && count($_GET['job_state']) > 0) {
             $searchConditions['job_state'] = $_GET['job_state'];
+            $query .= sprintf(' AND media.job_state IN (\'%s\')', implode('\',\'', $searchConditions['job_state']));
         }
 
-        $query .= sprintf(' AND media.id LIKE \'%%%s%%\'', $searchConditions['word']);
-        $query .= sprintf(' AND media.job_state IN (%s)', implode(',', $searchConditions['job_state']));
+        if (isset($_GET['category']) && count($_GET['category']) > 0) {
+            $searchConditions['category'] = $_GET['category'];
+            $query .= sprintf(' AND media.category_id IN (\'%s\')', implode('\',\'', $searchConditions['category']));
+        }
+
         $query .= ' ORDER BY updated_at DESC;';
 
         $result = $app->db->query($query);
@@ -203,14 +226,13 @@ $app->get('/medias', function () use ($app) {
         throw($e);
     }
 
-    $app->log->debug(print_r($medias, true));
-
     $app->render(
         'media/index.php',
         [
-            'medias'     => $medias,
-            'jobState'   => new JobState,
-            'searchConditions' => $searchConditions
+            'medias'           => $medias,
+            'jobState'         => new JobState,
+            'searchConditions' => $searchConditions,
+            'categories'      => $categories
         ]
     );
 })->name('medias');;
@@ -223,8 +245,7 @@ $app->get('/media/:id', function ($id) use ($app) {
 
     $media = null;
     $urls = [
-        'smooth_streaming' => '',
-        'http_live_streaming' => '',
+        'smooth_streaming' => ''
     ];
 
     try {
@@ -236,11 +257,6 @@ $app->get('/media/:id', function ($id) use ($app) {
             $query = sprintf('SELECT url FROM task WHERE media_id = \'%s\' AND name = \'smooth_streaming\' ORDER BY updated_at DESC;', $id);
             $url = $app->db->querySingle($query);
             $urls['smooth_streaming'] = $url;
-
-            // HLS用のURL
-            $query = sprintf('SELECT url FROM task WHERE media_id = \'%s\' AND name = \'http_live_streaming\' ORDER BY updated_at DESC;', $id);
-            $url = $app->db->querySingle($query);
-            $urls['http_live_streaming'] = $url;
         } else {
             $media = null;
         }
@@ -360,11 +376,59 @@ $app->get('/media/:id/download', function ($id) use ($app) {
     } catch (Exception $e) {
         $app->log->debug(print_r($e, true));
 
-        throw($e);
+        throw $e;
     }
 
-    throw(new Exception('予期せぬエラー'));
+    throw new Exception('予期せぬエラー');
 })->name('media_download');
+
+/**
+ * メディア削除
+ */
+$app->get('/media/:id/delete', function ($id) use ($app) {
+    $app->log->debug($id);
+
+    $isDeleted = false;
+    try {
+        $query = sprintf('DELETE FROM media WHERE id = \'%s\';', $id);
+        $app->log->debug('$query:' . $query);
+        if (!$app->db->exec($query)) {
+            $egl = error_get_last();
+            $e = new Exception('SQLの実行でエラーが発生しました' . $egl['message']);
+            throw $e;
+        }
+
+        // ジョブがあればアセットも削除
+        $query = sprintf('SELECT * FROM media WHERE id = \'%s\';', $id);
+        $media = $app->db->querySingle($query, true);
+        if (isset($media['id']) && $media['job_id']) {
+            $mediaServicesWrapper = $app->getMediaServicesWrapper();
+
+            // ジョブのアセットを取得
+            $inputAssets = $mediaServicesWrapper->getJobInputMediaAssets($media['job_id']);
+            $outputAssets = $mediaServicesWrapper->getJobOutputMediaAssets($media['job_id']);
+
+            // アセット削除
+            foreach ($inputAssets as $asset) {
+                $mediaServicesWrapper->deleteAsset($asset);
+            }
+            foreach ($outputAssets as $asset) {
+                $mediaServicesWrapper->deleteAsset($asset);
+            }
+        }
+
+        $isDeleted = true;
+    } catch (Exception $e) {
+        $app->log->debug(print_r($e, true));
+        throw $e;
+    }
+
+    if ($isDeleted) {
+        $app->redirect('/medias', 303);
+    }
+
+    throw new Exception('予期せぬエラー');
+})->name('media_delete');
 
 /**
  * アカウント編集
@@ -426,6 +490,7 @@ $app->post('/user/edit', function () use ($app) {
         );
     }
 
+    $isSaved = false;
     try {
         // トランザクションの開始
         $app->db->exec('BEGIN DEFERRED;');
@@ -444,13 +509,17 @@ $app->post('/user/edit', function () use ($app) {
 
         // コミット
         $app->db->exec('COMMIT;');
-        $app->redirect('/user/edit');
+        $isSaved = true;
     } catch (Exception $e) {
         $app->log->debug(print_r($e, true));
 
         // ロールバック
         $app->db->exec('ROLLBACK;');
         throw $e;
+    }
+
+    if ($isSaved) {
+        $app->redirect('/user/edit', 303);
     }
 });
 
