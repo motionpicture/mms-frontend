@@ -34,13 +34,12 @@ $app->get('/media/new', function () use ($app) {
     try {
         $query = 'SELECT * FROM category';
         $result = $app->db->query($query);
-        while($res = $result->fetchArray(SQLITE3_ASSOC)){
+        while ($res = $result->fetchArray(SQLITE3_ASSOC)) {
             $categories[$res['id']] = $res['name'];
         }
     } catch (Exception $e) {
         $this->log($e);
-
-        throw($e);
+        throw $e;
     }
 
     $app->render(
@@ -65,13 +64,12 @@ $app->post('/media/new', function () use ($app) {
     try {
         $query = 'SELECT * FROM category';
         $result = $app->db->query($query);
-        while($res = $result->fetchArray(SQLITE3_ASSOC)){
+        while ($res = $result->fetchArray(SQLITE3_ASSOC)) {
             $categories[$res['id']] = $res['name'];
         }
     } catch (Exception $e) {
         $this->log($e);
-
-        throw($e);
+        throw $e;
     }
 
     $app->log->debug(print_r($_POST, true));
@@ -100,39 +98,12 @@ $app->post('/media/new', function () use ($app) {
 
     $isSaved = false;
     try {
-        // トランザクションの開始
-        $app->db->exec('BEGIN DEFERRED;');
-
-        // 同作品同カテゴリーのデータがあるか確認
-        $query = sprintf('SELECT COUNT(*) AS count FROM media WHERE mcode = \'%s\' AND category_id = \'%s\';',
-                        $_POST['mcode'],
-                        $_POST['category_id']);
-        $count = $app->db->querySingle($query);
-        // バージョンを確定
-        $version = $count;
-        // 作品コード、カテゴリー、バージョンからIDを生成
-        $id = implode('_', array($_POST['mcode'], $_POST['category_id'], $version));
-
-        $query = sprintf(
-            "INSERT INTO media (id, mcode, version, size, extension, user_id, category_id, created_at, updated_at) VALUES ('%s', '%s', '%s', '%s', '%s', '%s', '%s', %s, %s);",
-            $id,
+        // アップロードファイルの一時的なID
+        $id = implode('_', array(
             $_POST['mcode'],
-            $version,
-            $_FILES['file']['size'],
-            pathinfo($_FILES['file']['name'], PATHINFO_EXTENSION),
-            $_SERVER['PHP_AUTH_USER'],
             $_POST['category_id'],
-            'datetime(\'now\', \'localtime\')',
-            'datetime(\'now\', \'localtime\')'
-        );
-        $app->log->debug('$query:' . $query);
-        if (!$app->db->exec($query)) {
-            $egl = error_get_last();
-            $e = new Exception('SQLの実行でエラーが発生しました' . $egl['message']);
-            throw $e;
-        }
-
-        $app->db->exec('COMMIT;');
+            uniqid()
+        ));
 
         $uploaddir = dirname(__FILE__) . sprintf('/../uploads/%s/', $_SERVER['PHP_AUTH_USER']);
         // なければ作成
@@ -156,14 +127,11 @@ $app->post('/media/new', function () use ($app) {
         $isSaved = true;
     } catch (Exception $e) {
         $app->log->debug(print_r($e, true));
-
-        // ロールバック
-        $app->db->exec('ROLLBACK;');
         throw $e;
     }
 
     if ($isSaved) {
-        $app->redirect('medias', 303);
+        $app->redirect('/medias', 303);
     }
 });
 

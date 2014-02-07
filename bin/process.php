@@ -31,83 +31,112 @@ use WindowsAzure\MediaServices\Models\StorageAccount;
 use WindowsAzure\Blob\Models\Block;
 use WindowsAzure\Blob\Models\BlobBlockType;
 
+set_time_limit(0);
+ini_set('max_execution_time', 600);
+ini_set('memory_limit', '500000000M');
+
 define('CHUNK_SIZE', 1024 * 1024); // Block Size = 1 MB
 
 class MmsBinProcessActions extends MmsBinActions
 {
+    private static $filePath = null;
+    private static $media = null;
+    private static $mediaId = null;
+
+    // WindowsAzure\MediaServices\Models\Job $job
+    private static $job = null;
+
     /**
      * __construct
      *
      * @see http://php.net/manual/ja/features.file-upload.common-pitfalls.php
      */
-    function __construct()
+    function __construct($filePath)
     {
         parent::__construct();
 
-        set_time_limit(0);
-        ini_set('max_execution_time', 600);
-        ini_set('memory_limit', '500000000M');
-
         $this->logFile = dirname(__FILE__) . '/process_log';
+
+        self::$filePath = $filePath;
+
+        $this->log(date('[Y/m/d H:i:s]') . ' start process');
+
+        $this->createMedia();
+
+        $this->createJob();
+
+        $this->updateMedia();
+
+        $this->log(date('[Y/m/d H:i:s]') . ' end process');
     }
 
     /**
-     * メディアに未登録のファイルであれば登録して新しいパスを返す
+     * ファイルパスからメディアプロパティの配列を返す
      *
-     * @param string $filepath もとのファイルパス
-     * @return string $newFilePath 新しいファイルパス
-     * @throws Exception
+     * @param string $path ファイルパス
+     * @return array
      */
-    function createMediaIfNotExist($filepath)
+    private function path2media($path)
     {
-        $this->log('$filepath:' . $filepath);
+        $this->log("\n--------------------\n" . 'start function: ' . __FUNCTION__ . "\n--------------------\n");
+        $this->log('$path: ' . print_r($path, true));
 
-        // すでにデータがあるか確認
-        $id = pathinfo($filepath, PATHINFO_FILENAME);
-        $query = sprintf('SELECT * FROM media WHERE id = \'%s\';', $id);
-        $this->log('$query:' . $query);
-        $media = $this->db->querySingle($query, true);
+        $fileName = pathinfo($path, PATHINFO_FILENAME);
 
-        // あれば何もせず終了
-        if (isset($media['id'])) {
-            return $filepath;
-        }
+        // アップロードされた場合、作品コード_カテゴリーID.拡張子というファイル
+        $fileNameParts = explode('_', $fileName);
+        $mcode = $fileNameParts[0];
+        $categoryId = $fileNameParts[1];
+        $userId = pathinfo(pathinfo($path, PATHINFO_DIRNAME), PATHINFO_FILENAME);
+        $size = (filesize($path)) ? filesize($path) : '';
+        $extension = pathinfo($path, PATHINFO_EXTENSION);
 
-        // なければ新規登録
-        $isSaved = false;
-        $newFilePath = '';
+        $media = [
+            'mcode'       => $mcode,
+            'category_id' => $categoryId,
+            'user_id'     => $userId,
+            'size'        => $size,
+            'extension'   => $extension,
+        ];
+
+        $this->log('$media: ' . print_r($media, true));
+        $this->log("\n--------------------\n" . 'end function: ' . __FUNCTION__ . "\n--------------------\n");
+
+        return $media;
+    }
+
+    /**
+     * DBへメディアを登録する
+     */
+    function createMedia()
+    {
+        $this->log("\n--------------------\n" . 'start function: ' . __FUNCTION__ . "\n--------------------\n");
+
+        // トランザクションの開始
+        $this->db->exec('BEGIN DEFERRED;');
 
         try {
-            // ディレクトリからユーザーIDを取得
-            $userId = pathinfo(pathinfo($filepath, PATHINFO_DIRNAME), PATHINFO_FILENAME);
+            $media = $this->path2media(self::$filePath);
 
-            // 同作品同カテゴリーのデータがあるか確認(フォーム以外からアップロードされた場合、作品コード_カテゴリーID.拡張子というファイル)
-            $idParts = explode('_', $id);
-            $mcode = $idParts[0];
-            $categoryId = $idParts[1];
-            $query = sprintf('SELECT COUNT(*) AS count FROM media WHERE mcode = \'%s\' AND category_id = \'%s\';',
-                            $mcode,
-                            $categoryId);
-            $count = $this->db->querySingle($query);
+            $query = sprintf('SELECT MAX(version) AS max_version FROM media WHERE mcode = \'%s\' AND category_id = \'%s\';',
+                            $media['mcode'],
+                            $media['category_id']);
+            $maxVersion = $this->db->querySingle($query);
             // バージョンを確定
-            $version = $count;
+            $media['version'] = $maxVersion + 1;
             // 作品コード、カテゴリー、バージョンからIDを生成
-            $id = implode('_', array($mcode, $categoryId, $version));
+            $media['id'] = implode('_', array($media['mcode'], $media['category_id'], $media['version']));
 
-            // サイズ
-            $size = (filesize($filepath)) ? filesize($filepath) : '';
-
-            // トランザクションの開始
-            $this->db->exec('BEGIN DEFERRED;');
+            $this->log($media);
 
             $query = sprintf("INSERT INTO media (id, mcode, size, extension, version, user_id, category_id, created_at, updated_at) VALUES ('%s', '%s', '%s', '%s', '%s', '%s', '%s', %s, %s);",
-                            $id,
-                            $mcode,
-                            $size,
-                            pathinfo($filepath, PATHINFO_EXTENSION),
-                            $version,
-                            $userId,
-                            $categoryId,
+                            $media['id'],
+                            $media['mcode'],
+                            $media['size'],
+                            $media['extension'],
+                            $media['version'],
+                            $media['user_id'],
+                            $media['category_id'],
                             'datetime(\'now\', \'localtime\')',
                             'datetime(\'now\', \'localtime\')');
             $this->log('$query:' . $query);
@@ -117,47 +146,118 @@ class MmsBinProcessActions extends MmsBinActions
                 throw $e;
             }
 
-            // 新しいファイルパスへリネーム
-            $newFilePath = sprintf('%s/%s.%s',
-                            pathinfo($filepath, PATHINFO_DIRNAME),
-                            $id,
-                            pathinfo($filepath, PATHINFO_EXTENSION));
-            $this->log($newFilePath);
-            if (!rename($filepath, $newFilePath)) {
-                $egl = error_get_last();
-                $e = new Exception('ファイルのリネームでエラーが発生しました' . $egl['message']);
-                throw $e;
-            }
-            chmod($newFilePath, 0644);
+            // コミット
+            $this->db->exec('COMMIT;');
+            self::$mediaId = $media['id'];
 
-            $isSaved = true;
+            $this->log('メディアを登録しました mediaId: ' . self::$mediaId);
         } catch (Exception $e) {
-            $this->log($e);
+            $this->log('メディアの登録に失敗しました: ' . $e->getMessage());
 
             // ロールバック
             $this->db->exec('ROLLBACK;');
-            throw($e);
         }
 
-        if ($isSaved) {
-            // コミット
-            $this->db->exec('COMMIT;');
-        }
-
-        $this->log('$newFilePath:' . $newFilePath);
-
-        return $newFilePath;
+        $this->log("\n--------------------\n" . 'end function: ' . __FUNCTION__ . "\n--------------------\n");
     }
 
     /**
      * media serviceのjobを作成する
      *
-     * @param string $filepath
-     * @return WindowsAzure\MediaServices\Models\Job $job
      */
-    function createJob($filepath)
+    function createJob()
     {
-        $this->log('$filepath:' . $filepath);
+        $this->log("\n--------------------\n" . 'start function: ' . __FUNCTION__ . "\n--------------------\n");
+
+        $filepath = self::$filePath;
+        if (is_null($filepath)) {
+            return;
+        }
+
+        $asset = null;
+        $isUploaded = false;
+        $job = null;
+
+        try {
+            $mediaServicesWrapper = $this->getMediaServicesWrapper();
+
+            // 資産を作成する
+            $asset = new Asset(Asset::OPTIONS_NONE);
+            $asset->setName(self::$mediaId);
+            $asset = $mediaServicesWrapper->createAsset($asset);
+
+            $this->log('アセットを作成しました: ' . print_r($asset, true));
+        } catch (Exception $e) {
+            $this->log('アセットの作成に失敗しました: ' . $e->getMessage());
+        }
+
+        try {
+            // ファイルのアップロードを実行する
+            $extension = pathinfo($filepath, PATHINFO_EXTENSION);
+            $fileName = sprintf('%s.%s', self::$mediaId, $extension);
+            $this->upload(basename($asset->getUri()), $fileName, $filepath);
+
+            $isUploaded = true;
+        } catch (Exception $e) {
+            $this->log('ブロブのコミットに失敗しました: ' . $e->getMessage());
+        }
+
+        try {
+            // アップロード失敗の場合、アセットの削除
+            if (!$isUploaded && !is_null($asset)) {
+                $mediaServicesWrapper->deleteAsset($asset);
+            }
+        } catch (Exception $e) {
+            $this->log($e->getMessage());
+        }
+
+        // アップロード失敗していれば終了
+        if (!$isUploaded) {
+            return;
+        }
+
+        try {
+            // ファイル メタデータの生成
+            $mediaServicesWrapper->createFileInfos($asset);
+
+            // エンコードジョブを作成
+            // タスクを追加(スムーズストリーミングに変換)
+            $mediaProcessor = $mediaServicesWrapper->getLatestMediaProcessor('Windows Azure Media Encoder');
+            $taskBody = '<?xml version="1.0" encoding="utf-8"?><taskBody><inputAsset>JobInputAsset(0)</inputAsset><outputAsset assetCreationOptions="0" assetName="smooth_streaming">JobOutputAsset(0)</outputAsset></taskBody>';
+            $task = new Task(
+                $taskBody,
+                $mediaProcessor->getId(),
+                TaskOptions::NONE
+            );
+            $task->setConfiguration('H264 Smooth Streaming 1080p');
+
+            $job = new Job();
+            $job->setName('job_for_' . self::$mediaId);
+            $job = $mediaServicesWrapper->createJob($job, array($asset), array($task));
+            self::$job = $job;
+
+            $this->log('ジョブを作成しました: ' . print_r(self::$job, true));
+        } catch (Exception $e) {
+            $this->log('ジョブの作成に失敗しました: ' . $e->getMessage());
+        }
+
+        $this->log("\n--------------------\n" . 'end function: ' . __FUNCTION__ . "\n--------------------\n");
+    }
+
+    /**
+     * media serviceのjobを作成する(仮)
+     *
+     * TODO 大きいファイルサイズに対応できていないので一旦未使用
+     *
+     */
+    function createJob2()
+    {
+        $this->log("\n--------------------\n" . 'start function: ' . __FUNCTION__ . "\n--------------------\n");
+        $filepath = self::$filePath;
+
+        if (is_null($filepath)) {
+            return;
+        }
 
         $asset = null;
         $accessPolicy = null;
@@ -170,13 +270,11 @@ class MmsBinProcessActions extends MmsBinActions
 
             // 資産を作成する
             $asset = new Asset(Asset::OPTIONS_NONE);
-            $asset->setName(basename($filepath));
+            $asset->setName(self::$mediaId);
             $asset = $mediaServicesWrapper->createAsset($asset);
 
             $this->log($asset);
 
-            /*
-            // ストレージサービスを使用してアップロードする場合、このプロセスは不要
             // AccessPolicy を設定する
             $accessPolicy = new AccessPolicy('NewUploadPolicy');
             $accessPolicy->setDurationInMinutes(30);
@@ -192,18 +290,16 @@ class MmsBinProcessActions extends MmsBinActions
             $locator = $mediaServicesWrapper->createLocator($locator);
 
             $this->log($locator);
-            */
         } catch (Exception $e) {
             $this->log($e->getMessage());
         }
 
         try {
             // ファイルのアップロードを実行する
-            $fileName = basename($filepath);
+            $extension = pathinfo($filepath, PATHINFO_EXTENSION);
+            $fileName = sprintf('%s.%s', self::$mediaId, $extension);
 //             $mediaServicesWrapper->uploadAssetFile($locator, $fileName, file_get_contents($filepath));
-//             $this->uploadAssetFile($locator, $fileName, $filepath);
-//             $this->uploadAssetFile2($locator, $fileName, $filepath);
-            $this->upload(basename($asset->getUri()), $fileName, $filepath);
+            $this->uploadAssetFile($locator, $fileName, $filepath);
 
             $isUploaded = true;
         } catch (Exception $e) {
@@ -230,7 +326,7 @@ class MmsBinProcessActions extends MmsBinActions
 
         // アップロード失敗していれば終了
         if (!$isUploaded) {
-            return $job;
+            return;
         }
 
         try {
@@ -242,9 +338,9 @@ class MmsBinProcessActions extends MmsBinActions
             $mediaProcessor = $mediaServicesWrapper->getLatestMediaProcessor('Windows Azure Media Encoder');
             $taskBody = '<?xml version="1.0" encoding="utf-8"?><taskBody><inputAsset>JobInputAsset(0)</inputAsset><outputAsset assetCreationOptions="0" assetName="smooth_streaming">JobOutputAsset(0)</outputAsset></taskBody>';
             $task = new Task(
-                $taskBody,
-                $mediaProcessor->getId(),
-                TaskOptions::NONE
+                            $taskBody,
+                            $mediaProcessor->getId(),
+                            TaskOptions::NONE
             );
             $task->setConfiguration('H264 Smooth Streaming 1080p');
 
@@ -324,16 +420,15 @@ class MmsBinProcessActions extends MmsBinActions
             */
 
             $job = new Job();
-            $job->setName('process asset_' . $asset->getId() . '_' . date('YmdHis'));
+            $job->setName('job_for_' . self::$mediaId);
             $job = $mediaServicesWrapper->createJob($job, array($asset), array($task));
+            self::$job = $job;
         } catch (Exception $e) {
             $this->log($e->getMessage());
-            throw $e;
         }
 
-        $this->log($job);
-
-        return $job;
+        $this->log('$job: ' . print_r(self::$job, true));
+        $this->log("\n--------------------\n" . 'end function: ' . __FUNCTION__ . "\n--------------------\n");
     }
 
     /**
@@ -403,53 +498,9 @@ class MmsBinProcessActions extends MmsBinActions
     }
 
     /**
-     * Upload asset file to storage.
-     *
-     * @param WindowsAzure\MediaServices\Models\Locator $locator Write locator for
-     * file upload
-     *
-     * @param string $name    Uploading filename
-     * @param string $path    Uploading content path
-     *
-     * @return none
-     */
-    private function uploadAssetFile2($locator, $name, $path)
-    {
-        $body = file_get_contents($path);
-        Validate::isA(
-            $locator,
-            'WindowsAzure\Mediaservices\Models\Locator',
-            'locator'
-        );
-        Validate::isString($name, 'name');
-        Validate::notNull($body, 'body');
-
-        $method     = Resources::HTTP_PUT;
-        $urlFile    = $locator->getBaseUri() . '/' . $name;
-        $url        = new Url($urlFile . $locator->getContentAccessComponent());
-
-        $filters    = array();
-        $statusCode = Resources::STATUS_CREATED;
-        $headers    = array(
-            Resources::CONTENT_TYPE   => Resources::BINARY_FILE_TYPE,
-            Resources::X_MS_VERSION   => Resources::STORAGE_API_LATEST_VERSION,
-            Resources::X_MS_BLOB_TYPE => BlobType::BLOCK_BLOB,
-        );
-
-        $httpClient = new HttpClient();
-//         $httpClient->setConfig([
-//                         'connect_timeout'   => 1800,
-//                         ]);
-        $httpClient->setMethod($method);
-        $httpClient->setHeaders($headers);
-        $httpClient->setExpectedStatusCode($statusCode);
-        $httpClient->setBody($body);
-        $httpClient->send($filters, $url);
-    }
-
-    /**
      * ストレージサービスを使用してアップロードする
      *
+     * @see http://msdn.microsoft.com/ja-jp/library/windowsazure/dd179439.aspx
      * @param string $containerName    コンテナー名
      * @param string $name             ブロブ名
      * @param string $path             Uploading content path
@@ -458,118 +509,70 @@ class MmsBinProcessActions extends MmsBinActions
      */
     private function upload($containerName, $blobName, $path)
     {
-        try {
-            $connectionString =  sprintf('DefaultEndpointsProtocol=%s;AccountName=%s;AccountKey=%s',
-                                   'http',
-                                   'testmvtkmsst',
-                                   '+aoUiBttXAZovixNHuNxnkNaMbj2ZWDBzJvkG+FQ0EMmwbGtvEgryoqlQDkq+OxmQomRDQCKZitgeGfAk299Lg==');
-            $blobRestProxy = WindowsAzure\Common\ServicesBuilder::getInstance()->createBlobService($connectionString);
-        } catch(ServiceException $e) {
-        }
+        $this->log("\n--------------------\n" . 'start function: ' . __FUNCTION__ . "\n--------------------\n");
+        $this->log('$containerName: ' . $containerName);
+        $this->log('$blobName: ' . $blobName);
+        $this->log('$path: ' . $path);
 
-        try {
-            $content = fopen($path, 'rb');
-            $counter = 1;
-            $blockIds = [];
-            while (!feof($content)) {
-                $blockId = str_pad($counter, 6, '0', STR_PAD_LEFT);
-                $block = new Block();
-                $block->setBlockId(base64_encode($blockId));
-                $block->setType(BlobBlockType::UNCOMMITTED_TYPE);
-                array_push($blockIds, $block);
-//                 echo $blockId . " | " . base64_encode($blockId) . " | " . count($blockIds);
-//                 echo "\n";
-//                 echo "-----------------------------------------";
-                $data = fread($content, CHUNK_SIZE);
-//                 echo "Read " . strlen($data) . " of data from file";
-//                 echo "\n";
-//                 echo "-----------------------------------------";
-//                 echo "\n";
-//                 echo "-----------------------------------------";
-//                 echo "Uploading block #: " . $blockId + " into blob storage. Please wait.";
-//                 echo "-----------------------------------------";
-//                 echo "\n";
-                $blobRestProxy->createBlobBlock($containerName, $blobName, base64_encode($blockId), $data);
-//                 echo "Uploaded block: " . $blockId . " into blob storage. Please wait";
-//                 echo "\n";
-//                 echo "-----------------------------------------";
-//                 echo "\n";
-                $counter++;
-            }
-            fclose($content);
-//             echo "Now committing block list. Please wait.";
-//             echo " -----------------------------------------";
-//             echo " \n ";
-//             echo "hello";
-            $blobRestProxy->commitBlobBlocks($containerName, $blobName, $blockIds);
-//             echo " -----------------------------------------";
-//             echo " \n ";
-//             echo "Blob created successfully.";
-        } catch (Exception $e) {
-            // @see http://msdn.microsoft.com/ja-jp/library/windowsazure/dd179439.aspx
-            throw($e);
+        $blobRestProxy = $this->getBlobServicesWrapper();
+
+        $content = fopen($path, 'rb');
+        $counter = 1;
+        $blockIds = [];
+        while (!feof($content)) {
+            $blockId = str_pad($counter, 6, '0', STR_PAD_LEFT);
+            $block = new Block();
+            $block->setBlockId(base64_encode($blockId));
+            $block->setType(BlobBlockType::UNCOMMITTED_TYPE);
+            array_push($blockIds, $block);
+            $data = fread($content, CHUNK_SIZE);
+            $blobRestProxy->createBlobBlock($containerName, $blobName, base64_encode($blockId), $data);
+            $counter++;
         }
+        fclose($content);
+        $result = $blobRestProxy->commitBlobBlocks($containerName, $blobName, $blockIds);
+
+        $this->log('ブロブコミットの結果: ' . print_r($result, true));
+        $this->log("\n--------------------\n" . 'end function: ' . __FUNCTION__ . "\n--------------------\n");
     }
 
     /**
      * DBのメディアをジョブ情報で更新する
      *
-     * @param string $filepath
-     * @param string $jobId
-     * @param string $jobState
-     * @throws Exception
+     * @return none
      */
-    function updateMedia($filepath, $jobId, $jobState)
+    function updateMedia()
     {
-        $this->log('$filepath:' . $filepath);
-        $this->log('$jobId:' . $jobId);
-        $this->log('$jobState:' . $jobState);
+        $this->log("\n--------------------\n" . 'start function: ' . __FUNCTION__ . "\n--------------------\n");
+
+        if (is_null(self::$job) || is_null(self::$mediaId)) {
+            return;
+        }
 
         // ジョブ情報をDBに登録
         try {
-            $db = $this->db;
-
-            // すでにデータがあるか確認
-            $id = pathinfo($filepath, PATHINFO_FILENAME);
-            $query = sprintf('SELECT * FROM media WHERE id = \'%s\';', $id);
-            $media = $db->querySingle($query, true);
-
-            if (isset($media['id'])) {
-                $query = sprintf("UPDATE media SET job_id = '%s', job_state = '%s', updated_at = %s WHERE id = '%s';",
-                                $jobId,
-                                $jobState,
-                                'datetime(\'now\', \'localtime\')',
-                                $id);
-                $this->log('$query:' . $query);
-                if (!$db->exec($query)) {
-                    $egl = error_get_last();
-                    $e = new Exception('SQLの実行でエラーが発生しました' . $egl['message']);
-                    throw $e;
-                }
+            $query = sprintf("UPDATE media SET job_id = '%s', job_state = '%s', updated_at = %s WHERE id = '%s';",
+                            self::$job->getId(),
+                            self::$job->getState(),
+                            'datetime(\'now\', \'localtime\')',
+                            self::$mediaId);
+            $this->log('$query:' . $query);
+            if (!$this->db->exec($query)) {
+                $egl = error_get_last();
+                $e = new Exception('SQLの実行でエラーが発生しました' . $egl['message']);
+                throw $e;
             }
         } catch (Exception $e) {
-            $this->log($e);
-
-            throw($e);
+            $this->log('メディアの更新に失敗しました: ' . $e->getMessage());
         }
+
+        $this->log("\n--------------------\n" . 'end function: ' . __FUNCTION__ . "\n--------------------\n");
     }
 }
-
-$processAction = new MmsBinProcessActions();
-
-$processAction->log('start process ' . date('Y-m-d H:i:s'));
 
 $filepath = fgets(STDIN);
 $filepath = str_replace(array("\r\n", "\r", "\n"), '', $filepath);
 
-$filepath = $processAction->createMediaIfNotExist($filepath);
-
-$job = $processAction->createJob($filepath);
-
-if (!is_null($job)) {
-    $processAction->updateMedia($filepath, $job->getId(), $job->getState());
-}
-
-$processAction->log('end process ' . date('Y-m-d H:i:s'));
+$processAction = new MmsBinProcessActions($filepath);
 
 ?>

@@ -14,6 +14,7 @@ class MmsBinActions
     public $db;
     public $logFile;
     private static $mediaServicesWrapper = null;
+    private static $blobServicesWrapper = null;
     private static $isDev = false;
 
     function __construct()
@@ -47,6 +48,26 @@ class MmsBinActions
         }
 
         return self::$mediaServicesWrapper;
+    }
+
+    /**
+     * WindowsAzureストレージサービスを取得する
+     *
+     * @return WindowsAzure\Blob\Internal\IBlob
+     */
+    public function getBlobServicesWrapper()
+    {
+        if (!isset(self::$blobServicesWrapper)) {
+            $connectionString =  sprintf(
+                'DefaultEndpointsProtocol=%s;AccountName=%s;AccountKey=%s',
+                'http',
+                'testmvtkmsst',
+                '+aoUiBttXAZovixNHuNxnkNaMbj2ZWDBzJvkG+FQ0EMmwbGtvEgryoqlQDkq+OxmQomRDQCKZitgeGfAk299Lg=='
+            );
+            self::$blobServicesWrapper = WindowsAzure\Common\ServicesBuilder::getInstance()->createBlobService($connectionString);
+        }
+
+        return self::$blobServicesWrapper;
     }
 
     function log($content)
