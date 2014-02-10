@@ -15,6 +15,7 @@ class MmsBinActions
     public $logFile;
     private static $mediaServicesWrapper = null;
     private static $blobServicesWrapper = null;
+    private static $blobAuthenticationScheme = null;
     private static $isDev = false;
 
     function __construct()
@@ -60,7 +61,7 @@ class MmsBinActions
         if (!isset(self::$blobServicesWrapper)) {
             $connectionString =  sprintf(
                 'DefaultEndpointsProtocol=%s;AccountName=%s;AccountKey=%s',
-                'http',
+                'https',
                 'testmvtkmsst',
                 '+aoUiBttXAZovixNHuNxnkNaMbj2ZWDBzJvkG+FQ0EMmwbGtvEgryoqlQDkq+OxmQomRDQCKZitgeGfAk299Lg=='
             );
@@ -68,6 +69,23 @@ class MmsBinActions
         }
 
         return self::$blobServicesWrapper;
+    }
+
+    /**
+     * SharedKeyAuthSchemeを取得する
+     *
+     * @return WindowsAzure\Common\Internal\Authentication\SharedKeyAuthScheme
+     */
+    public function getBlobAuthenticationScheme()
+    {
+        if (!isset(self::$blobAuthenticationScheme)) {
+            self::$blobAuthenticationScheme = new WindowsAzure\Common\Internal\Authentication\SharedKeyAuthScheme(
+                'testmvtkmsst',
+                '+aoUiBttXAZovixNHuNxnkNaMbj2ZWDBzJvkG+FQ0EMmwbGtvEgryoqlQDkq+OxmQomRDQCKZitgeGfAk299Lg=='
+            );
+        }
+
+        return self::$blobAuthenticationScheme;
     }
 
     function log($content)

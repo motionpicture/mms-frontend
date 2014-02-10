@@ -30,17 +30,17 @@ use WindowsAzure\MediaServices\Models\StorageAccount;
 
 use WindowsAzure\Blob\Models\Block;
 use WindowsAzure\Blob\Models\BlobBlockType;
+use WindowsAzure\Blob\Models\CreateBlobBlockOptions;
 
 set_time_limit(0);
 ini_set('max_execution_time', 600);
-ini_set('memory_limit', '500000000M');
+ini_set('memory_limit', '1024M');
 
 define('CHUNK_SIZE', 1024 * 1024); // Block Size = 1 MB
 
 class MmsBinProcessActions extends MmsBinActions
 {
     private static $filePath = null;
-    private static $media = null;
     private static $mediaId = null;
 
     // WindowsAzure\MediaServices\Models\Job $job
@@ -525,14 +525,136 @@ class MmsBinProcessActions extends MmsBinActions
             $block->setBlockId(base64_encode($blockId));
             $block->setType(BlobBlockType::UNCOMMITTED_TYPE);
             array_push($blockIds, $block);
+
             $data = fread($content, CHUNK_SIZE);
-            $blobRestProxy->createBlobBlock($containerName, $blobName, base64_encode($blockId), $data);
+//             $blobRestProxy->createBlobBlock($containerName, $blobName, base64_encode($blockId), $data);
+            $this->createBlobBlock($containerName, $blobName, base64_encode($blockId), $data);
+
             $counter++;
         }
         fclose($content);
         $result = $blobRestProxy->commitBlobBlocks($containerName, $blobName, $blockIds);
 
         $this->log('ブロブコミットの結果: ' . print_r($result, true));
+        $this->log("\n--------------------\n" . 'end function: ' . __FUNCTION__ . "\n--------------------\n");
+    }
+
+    /**
+     * Creates a new block to be committed as part of a block blob.
+     *
+     * @param string                        $container name of the container
+     * @param string                        $blob      name of the blob
+     * @param string                        $blockId   must be less than or equal to
+     * 64 bytes in size. For a given blob, the length of the value specified for the
+     * blockid parameter must be the same size for each block.
+     * @param string                        $content   the blob block contents
+     * @param Models\CreateBlobBlockOptions $options   optional parameters
+     *
+     * @return none
+     *
+     * @see http://msdn.microsoft.com/en-us/library/windowsazure/dd135726.aspx
+     */
+    private function createBlobBlock($container, $blob, $blockId, $content, $options = null) {
+        $this->log("\n--------------------\n" . 'start function: ' . __FUNCTION__ . "\n--------------------\n");
+        $this->log('$container: ' . $container);
+        $this->log('$blob: ' . $blob);
+        $this->log('$blockId: ' . $blockId);
+        $this->log('$content length: ' . strlen($content));
+        $this->log('$options: ' . print_r($options, true));
+
+        $blobRestProxy = $this->getBlobServicesWrapper();
+        $url = sprintf('%s/%s/%s',
+                        $blobRestProxy->getUri(),
+                        $container,
+                        $blob);
+
+        $headers = [
+            'content-type' => 'application/x-www-form-urlencoded',
+            'content-length' => strlen($content),
+            'user-agent' => "Azure-SDK-For-PHP/0.4.0",
+            'x-ms-version' => '2011-08-18',
+            'date' => gmdate('D, d M Y H:i:s T', time()),
+        ];
+
+        $queryParams = [
+            'comp' => 'block',
+            'blockid' => base64_encode($blockId)
+        ];
+
+        $httpMethod = 'PUT';
+
+        $url .= '?' . http_build_query($queryParams);
+
+        $authSchema = $this->getBlobAuthenticationScheme();
+        $sharedKey = $authSchema->getAuthorizationHeader($headers, $url, $queryParams, $httpMethod);
+        $headers['authorization'] = $sharedKey;
+
+        // PUTするためのファイルポインタ作成
+        $tmpFile = dirname(__FILE__) . '/tmp/' . pathinfo($blob, PATHINFO_FILENAME);
+        $fp = fopen($tmpFile, 'w+');
+        if ($fp === false) {
+            $egl = error_get_last();
+            $e = new Exception('ファイルを開くことができませんでした' . $egl['message']);
+            throw $e;
+        }
+        fwrite($fp, $content);
+        fclose($fp);
+
+        $fp = fopen($tmpFile, 'rb');
+        if ($fp === false) {
+            $egl = error_get_last();
+            $e = new Exception('ファイルを開くことができませんでした' . $egl['message']);
+            throw $e;
+        }
+
+        $curlHeaders = [];
+        foreach ($headers as $name => $value) {
+            $canonicalName = implode('-', array_map('ucfirst', explode('-', $name)));
+            $curlHeaders[]  = $canonicalName . ': ' . $value;
+        }
+
+        $ch = curl_init($url);
+        $options = [
+            CURLOPT_HTTPHEADER     => $curlHeaders,
+            CURLOPT_PUT            => true,
+            CURLOPT_INFILE         => $fp,
+            CURLOPT_INFILESIZE     => strlen($content),
+            CURLOPT_RETURNTRANSFER => 1,
+            CURLOPT_BINARYTRANSFER => 1,
+            CURLOPT_SSL_VERIFYPEER => false,
+            CURLOPT_SSLVERSION     => 3,
+            CURLOPT_CONNECTTIMEOUT => 300,
+            CURLOPT_TIMEOUT        => 0
+        ];
+        curl_setopt_array($ch, $options);
+
+        $result = curl_exec($ch);
+        $this->log('ブロブブロック作成結果: ' . print_r($result, true));
+        fclose($fp);
+
+        // 一時ファイルを削除
+        unlink($tmpFile);
+
+        if (!curl_errno($ch)) {
+            $info = curl_getinfo($ch);
+            $this->log($info);
+
+            if ($info['http_code'] != '201') {
+                $object = simplexml_load_string($result);
+                $this->log($object);
+
+                $e = new Exception('upload error: ' . $object->Code . ' ' . $object->Message);
+                curl_close($ch);
+                throw $e;
+            }
+
+            curl_close($ch);
+        } else {
+            $e = new Exception(curl_error($ch));
+            curl_close($ch);
+            throw $e;
+        }
+
         $this->log("\n--------------------\n" . 'end function: ' . __FUNCTION__ . "\n--------------------\n");
     }
 
