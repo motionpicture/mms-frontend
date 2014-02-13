@@ -22,7 +22,7 @@ class MmsBinActions
     {
         $this->db = new MmsDb();
 
-        $this->logFile = dirname(__FILE__) . '/mms_bin.log';
+        $this->logFile = dirname(__FILE__) . '/../log/mms_bin.log';
 
         $options = getopt('', array('env:'));
         if (isset($options['env']) && $options['env'] == 'dev') {

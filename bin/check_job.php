@@ -12,7 +12,7 @@ class MmsBinCheckJobActions extends MmsBinActions
     {
         parent::__construct();
 
-        $this->logFile = dirname(__FILE__) . '/check_job_log';
+        $this->logFile = dirname(__FILE__) . '/../log/check_job.log';
 
         $this->log(date('[Y/m/d H:i:s]') . ' start check job');
 
@@ -33,6 +33,7 @@ class MmsBinCheckJobActions extends MmsBinActions
         }
 
         foreach ($medias as $media) {
+            $this->log("\n--------------------\n" . $media['id'] . 'のジョブ進捗を確認しています...' . "\n--------------------\n");
             try {
                 $url = $this->tryDeliverMedia($media['id'], $media['job_id'], $media['job_state']);
 
@@ -83,34 +84,22 @@ class MmsBinCheckJobActions extends MmsBinActions
 
             // クエリを作成
             $query = '';
-            try {
-                // ジョブのステータスを更新
-                $query .= sprintf("UPDATE media SET job_state = '%s', updated_at = %s WHERE id = '%s';",
-                                $job->getState(),
-                                'datetime(\'now\', \'localtime\')',
-                                $mediaId);
-
-                // ジョブが完了の場合、URL発行プロセス
-                if ($job->getState() == Job::STATE_FINISHED) {
-                    // エンコード完了日時を更新
-                    $query .= sprintf("UPDATE media SET job_start_at = '%s', job_end_at = '%s', updated_at = %s WHERE id = '%s';",
+            // ジョブが完了の場合、URL発行プロセス
+            if ($job->getState() == Job::STATE_FINISHED) {
+                try {
+                    // ジョブに関する情報更新
+                    $query .= sprintf("UPDATE media SET job_state = '%s', job_start_at = '%s', job_end_at = '%s', updated_at = %s WHERE id = '%s';",
+                                    $job->getState(),
                                     date('Y-m-d H:i:s', strtotime('+9 hours', $job->getStartTime()->getTimestamp())),
                                     date('Y-m-d H:i:s', strtotime('+9 hours', $job->getEndTime()->getTimestamp())),
                                     'datetime(\'now\', \'localtime\')',
                                     $mediaId);
 
-                    // 読み取りアクセス許可を持つAccessPolicyの作成
-                    $accessPolicy = new AccessPolicy('StreamingPolicy');
-                    $accessPolicy->setDurationInMinutes(25920000);
-                    $accessPolicy->setPermissions(AccessPolicy::PERMISSIONS_READ);
-                    $accessPolicy = $mediaServicesWrapper->createAccessPolicy($accessPolicy);
-
-                    // ジョブのアセットを取得
-                    $assets = $mediaServicesWrapper->getJobOutputMediaAssets($job);
-
+                    // ジョブのアウトプットアセットを取得
+                    $assets = $mediaServicesWrapper->getJobOutputMediaAssets($job->getId());
                     foreach ($assets as $asset) {
                         if ($asset->getOptions() == Asset::OPTIONS_NONE) {
-                            $url = $this->createUrl($asset->getId(), $asset->getName(), $accessPolicy->getId(), $mediaId);
+                            $url = $this->createUrl($asset->getId(), $asset->getName(), $mediaId);
 
                             $query .= sprintf("INSERT INTO task (media_id, name, url, created_at, updated_at) VALUES ('%s', '%s', '%s', %s, %s);",
                                             $mediaId,
@@ -120,9 +109,16 @@ class MmsBinCheckJobActions extends MmsBinActions
                                             'datetime(\'now\', \'localtime\')');
                         }
                     }
+                } catch (Exception $e) {
+                    $this->log('ジョブのアウトプットアセットに対してストリーミングURL発行中にエラー: ' . $e->getMessage());
                 }
-            } catch (Exception $e) {
-                $this->log($e->getMessage());
+            // 未完了の場合、ステータスの更新のみ
+            } else {
+                $query .= sprintf("UPDATE media SET job_state = '%s', updated_at = %s WHERE id = '%s';",
+                                $job->getState(),
+                                'datetime(\'now\', \'localtime\')',
+                                $mediaId);
+
             }
 
             if ($query != '') {
@@ -147,28 +143,47 @@ class MmsBinCheckJobActions extends MmsBinActions
             }
         }
 
-        $this->log('発行されたURL: ' . $url);
         $this->log("\n--------------------\n" . 'end function: ' . __FUNCTION__ . "\n--------------------\n");
 
         return $url;
     }
 
     /**
-     * Create locator
+     * アセットに対してストリーミングURLを生成する
      *
      * @param string        $assetId
      * @param string        $assetName
-     * @param string        $accessPolicyId
      * @param string        $mediaId
      * @return string
      */
-    private function createUrl($assetId, $assetName, $accessPolicyId, $mediaId)
+    private function createUrl($assetId, $assetName, $mediaId)
     {
+        $this->log("\n--------------------\n" . 'start function: ' . __FUNCTION__ . "\n--------------------\n");
+        $this->log('args: ' . print_r(func_get_args(), true));
+
+        $mediaServicesWrapper = $this->getMediaServicesWrapper();
+
+        // 特定のAssetに対して、同時に 5 つを超える一意のLocatorを関連付けることはできない
+        // 万が一OnDemandOriginロケーターがあれば削除
+        $locators = $mediaServicesWrapper->getAssetLocators($assetId);
+        foreach ($locators as $locator) {
+            if ($locator->getType() == Locator::TYPE_ON_DEMAND_ORIGIN) {
+                $mediaServicesWrapper->deleteLocator($locator);
+                $this->log('OnDemandOriginロケーターを削除しました $locator: '. print_r($locator, true));
+            }
+        }
+
+        // 読み取りアクセス許可を持つAccessPolicyの作成
+        $accessPolicy = new AccessPolicy('StreamingPolicy');
+        $accessPolicy->setDurationInMinutes(25920000);
+        $accessPolicy->setPermissions(AccessPolicy::PERMISSIONS_READ);
+        $accessPolicy = $mediaServicesWrapper->createAccessPolicy($accessPolicy);
+
         // コンテンツストリーミング用の配信元URLの作成
-        $locator = new Locator($assetId, $accessPolicyId, Locator::TYPE_ON_DEMAND_ORIGIN);
+        $locator = new Locator($assetId, $accessPolicy, Locator::TYPE_ON_DEMAND_ORIGIN);
         $locator->setName('StreamingLocator_' . $assetId);
         $locator->setStartTime(new \DateTime('now -5 minutes'));
-        $locator = $this->getMediaServicesWrapper()->createLocator($locator);
+        $locator = $mediaServicesWrapper->createLocator($locator);
 
         // URLを生成
         switch ($assetName) {
@@ -181,11 +196,17 @@ class MmsBinCheckJobActions extends MmsBinActions
                 break;
         }
 
+        $this->log('発行されたURL: ' . $url);
+        $this->log("\n--------------------\n" . 'end function: ' . __FUNCTION__ . "\n--------------------\n");
+
         return $url;
     }
 
     private function sendEmail($mediaId, $userId)
     {
+        $this->log("\n--------------------\n" . 'start function: ' . __FUNCTION__ . "\n--------------------\n");
+        $this->log('args: ' . print_r(func_get_args(), true));
+
         $query = sprintf('SELECT email FROM user WHERE id = \'%s\';', $userId);
         $email = $this->db->querySingle($query);
         $this->log('$email:' . $email);
@@ -201,6 +222,8 @@ class MmsBinCheckJobActions extends MmsBinActions
                 $this->log('メール送信に失敗しました' . $egl['message']);
             }
         }
+
+        $this->log("\n--------------------\n" . 'end function: ' . __FUNCTION__ . "\n--------------------\n");
     }
 }
 

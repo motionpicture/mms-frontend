@@ -305,13 +305,6 @@ $app->get('/media/:id/download', function ($id) use ($app) {
 
             $asset = $assets[0];
 
-            // 既存のSASロケーターを全て削除
-            // Server does not support setting more than 5 shared access policy identifiers on a single container..
-//             $locators = $mediaServicesWrapper->getAssetLocators($asset);
-//             foreach ($locators as $locator) {
-//                 $mediaServicesWrapper->deleteLocator($locator);
-//             }
-
             // ダウンロードURLの作成
             $locator = new WindowsAzure\MediaServices\Models\Locator(
                 $asset,

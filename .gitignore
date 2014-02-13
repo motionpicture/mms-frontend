@@ -9,3 +9,7 @@ vendor
 
 tests/_log/*
 !tests/_log/.gitkeep
+
+log/*
+
+db/mms.db

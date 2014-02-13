@@ -55,17 +55,21 @@ class MmsBinProcessActions extends MmsBinActions
     {
         parent::__construct();
 
-        $this->logFile = dirname(__FILE__) . '/process_log';
+        $this->logFile = dirname(__FILE__) . '/../log/process.log';
 
         self::$filePath = $filePath;
 
         $this->log(date('[Y/m/d H:i:s]') . ' start process');
 
-        $this->createMedia();
+        try {
+            $this->createMedia();
 
-        $this->createJob();
+            $this->createJob();
 
-        $this->updateMedia();
+            $this->updateMedia();
+        } catch (Exception $e) {
+            $this->log($e->getMessage());
+        }
 
         $this->log(date('[Y/m/d H:i:s]') . ' end process');
     }
@@ -99,6 +103,15 @@ class MmsBinProcessActions extends MmsBinActions
             'extension'   => $extension,
         ];
 
+        $query = sprintf('SELECT MAX(version) AS max_version FROM media WHERE mcode = \'%s\' AND category_id = \'%s\';',
+                        $media['mcode'],
+                        $media['category_id']);
+        $maxVersion = $this->db->querySingle($query);
+        // バージョンを確定
+        $media['version'] = $maxVersion + 1;
+        // 作品コード、カテゴリー、バージョンからIDを生成
+        $media['id'] = implode('_', array($media['mcode'], $media['category_id'], $media['version']));
+
         $this->log('$media: ' . print_r($media, true));
         $this->log("\n--------------------\n" . 'end function: ' . __FUNCTION__ . "\n--------------------\n");
 
@@ -108,7 +121,7 @@ class MmsBinProcessActions extends MmsBinActions
     /**
      * DBへメディアを登録する
      */
-    function createMedia()
+    private function createMedia()
     {
         $this->log("\n--------------------\n" . 'start function: ' . __FUNCTION__ . "\n--------------------\n");
 
@@ -117,17 +130,6 @@ class MmsBinProcessActions extends MmsBinActions
 
         try {
             $media = $this->path2media(self::$filePath);
-
-            $query = sprintf('SELECT MAX(version) AS max_version FROM media WHERE mcode = \'%s\' AND category_id = \'%s\';',
-                            $media['mcode'],
-                            $media['category_id']);
-            $maxVersion = $this->db->querySingle($query);
-            // バージョンを確定
-            $media['version'] = $maxVersion + 1;
-            // 作品コード、カテゴリー、バージョンからIDを生成
-            $media['id'] = implode('_', array($media['mcode'], $media['category_id'], $media['version']));
-
-            $this->log($media);
 
             $query = sprintf("INSERT INTO media (id, mcode, size, extension, version, user_id, category_id, created_at, updated_at) VALUES ('%s', '%s', '%s', '%s', '%s', '%s', '%s', %s, %s);",
                             $media['id'],
@@ -156,6 +158,8 @@ class MmsBinProcessActions extends MmsBinActions
 
             // ロールバック
             $this->db->exec('ROLLBACK;');
+
+            throw $e;
         }
 
         $this->log("\n--------------------\n" . 'end function: ' . __FUNCTION__ . "\n--------------------\n");
@@ -165,7 +169,7 @@ class MmsBinProcessActions extends MmsBinActions
      * media serviceのjobを作成する
      *
      */
-    function createJob()
+    private function createJob()
     {
         $this->log("\n--------------------\n" . 'start function: ' . __FUNCTION__ . "\n--------------------\n");
 
@@ -189,6 +193,7 @@ class MmsBinProcessActions extends MmsBinActions
             $this->log('アセットを作成しました: ' . print_r($asset, true));
         } catch (Exception $e) {
             $this->log('アセットの作成に失敗しました: ' . $e->getMessage());
+            throw $e;
         }
 
         try {
@@ -200,6 +205,7 @@ class MmsBinProcessActions extends MmsBinActions
             $isUploaded = true;
         } catch (Exception $e) {
             $this->log('ブロブのコミットに失敗しました: ' . $e->getMessage());
+            throw $e;
         }
 
         try {
@@ -208,7 +214,8 @@ class MmsBinProcessActions extends MmsBinActions
                 $mediaServicesWrapper->deleteAsset($asset);
             }
         } catch (Exception $e) {
-            $this->log($e->getMessage());
+            $this->log('アセットの削除に失敗しました: ' . $e->getMessage());
+            throw $e;
         }
 
         // アップロード失敗していれば終了
@@ -239,6 +246,7 @@ class MmsBinProcessActions extends MmsBinActions
             $this->log('ジョブを作成しました: ' . print_r(self::$job, true));
         } catch (Exception $e) {
             $this->log('ジョブの作成に失敗しました: ' . $e->getMessage());
+            throw $e;
         }
 
         $this->log("\n--------------------\n" . 'end function: ' . __FUNCTION__ . "\n--------------------\n");
@@ -250,7 +258,7 @@ class MmsBinProcessActions extends MmsBinActions
      * TODO 大きいファイルサイズに対応できていないので一旦未使用
      *
      */
-    function createJob2()
+    private function createJob2()
     {
         $this->log("\n--------------------\n" . 'start function: ' . __FUNCTION__ . "\n--------------------\n");
         $filepath = self::$filePath;
@@ -663,7 +671,7 @@ class MmsBinProcessActions extends MmsBinActions
      *
      * @return none
      */
-    function updateMedia()
+    private function updateMedia()
     {
         $this->log("\n--------------------\n" . 'start function: ' . __FUNCTION__ . "\n--------------------\n");
 
@@ -695,6 +703,6 @@ class MmsBinProcessActions extends MmsBinActions
 $filepath = fgets(STDIN);
 $filepath = str_replace(array("\r\n", "\r", "\n"), '', $filepath);
 
-$processAction = new MmsBinProcessActions($filepath);
+new MmsBinProcessActions($filepath);
 
 ?>
