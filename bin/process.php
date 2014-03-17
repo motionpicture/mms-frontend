@@ -137,6 +137,38 @@ class MmsBinProcessActions extends MmsBinActions
             $media['playtime_seconds'] = $fileInfo['playtime_seconds'];
         }
 
+        // 作品名を取得
+        $media['movie_name'] = '';
+        try {
+            $option = [
+                'soap' => [
+                    'endPoint' => 'https://www.movieticket.jp',
+                ],
+                'blob' => [
+                    'name' => 'testmovieticketfrontend',
+                    'key' => 'c93s/ZXgTySSgB6FrCWvOXalfRxKQFd96s61X8TwMUc3jmjAeRyBY9jSMvVQXh4U9gIRNNH6mCkn44ZG/T3OXA==',
+                ],
+                'sendgrid' => [
+                    'api_user' => 'azure_2fa68dcc38c9589d53104d96bc2798ed@azure.com',
+                    'api_key' => 'pwmk27ud',
+                    'from' => 'info@movieticket.jp',
+                    'fromname' => 'ムビチケ',
+                ],
+            ];
+
+            $factory = new \MvtkService\Factory($option);
+            $service = $factory->createInstance('Film');
+            $params = [
+                'skhnCd' => $media['mcode'],
+                'dvcTyp' => \MvtkService\Common::DVC_TYP_PC,
+            ];
+            $film = $service->GetFilmDetail($params);
+            $film = $film->toArray();
+            $media['movie_name'] = $film['SKHN_NM'];
+        } catch (Exception $e) {
+            $this->log('fail in getting movie name: ' . $e->getMessage());
+        }
+
         $this->log('$media: ' . print_r($media, true));
         $this->log("\n--------------------\n" . 'end function: ' . __FUNCTION__ . "\n--------------------\n");
 
@@ -157,7 +189,7 @@ class MmsBinProcessActions extends MmsBinActions
             $media = $this->path2media(self::$filePath);
 
             $query = sprintf(
-                "INSERT INTO media (id, code, mcode, size, extension, version, user_id, playtime_string, playtime_seconds, category_id, created_at, updated_at) VALUES ('%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', datetime('now', 'localtime'), datetime('now', 'localtime'));",
+                "INSERT INTO media (id, code, mcode, size, extension, version, user_id, movie_name, playtime_string, playtime_seconds, category_id, created_at, updated_at) VALUES ('%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', datetime('now', 'localtime'), datetime('now', 'localtime'));",
                 $media['id'],
                 $media['code'],
                 $media['mcode'],
@@ -165,6 +197,7 @@ class MmsBinProcessActions extends MmsBinActions
                 $media['extension'],
                 $media['version'],
                 $media['user_id'],
+                $media['movie_name'],
                 $media['playtime_string'],
                 $media['playtime_seconds'],
                 $media['category_id']

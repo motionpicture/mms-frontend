@@ -8,6 +8,8 @@
 
 <!-- Bootstrap -->
 <link href="/css/bootstrap.min.css" rel="stylesheet">
+<!-- <link href="/css/bootstrap-theme.min.css" rel="stylesheet"> -->
+<link href="/css/ladda-themeless.min.css" rel="stylesheet">
 <link href="/css/dashboard.css" rel="stylesheet">
 
 <!-- HTML5 Shim and Respond.js IE8 support of HTML5 elements and media queries -->
@@ -21,6 +23,9 @@
 <script src="https://code.jquery.com/jquery.js"></script>
 <!-- Include all compiled plugins (below), or include individual files as needed -->
 <script src="/js/bootstrap.min.js"></script>
+<script src="/js/spin.min.js"></script>
+<script src="/js/ladda.min.js"></script>
+<script src="/js/common.js"></script>
 </head>
 
 <body>

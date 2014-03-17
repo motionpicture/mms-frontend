@@ -44,37 +44,30 @@ table td {
                         <tr>
                             <th>名前</th>
                             <th>作品コード</th>
+                            <th>作品名</th>
                             <th>カテゴリー</th>
                             <th>バージョン</th>
                             <th>サイズ(MB)</th>
                             <th>再生時間</th>
                             <th>ユーザー</th>
-                            <th>ジョブID</th>
                             <th>ジョブ進捗</th>
                             <th>更新日時</th>
-                            <th></th>
                         </tr>
                     </thead>
 
                     <tbody>
                         <?php foreach ($medias as $media) { ?>
                         <tr>
-                            <td><a href="/media/<?php echo $media['id'] ?>"><?php echo $media['id'] ?></a></td>
+                            <td><a href="/media/<?php echo $media['code'] ?>"><?php echo $media['id'] ?></a></td>
                             <td><?php echo $media['mcode'] ?></td>
+                            <td><?php echo $media['movie_name'] ?></td>
                             <td><?php echo $media['category_name'] ?></div></td>
                             <td><?php echo $media['versions'] ?></div></td>
                             <td><?php echo floor($media['size'] / 1000000) ?></div></td>
                             <td><?php echo $media['playtime_string'] ?></div></td>
                             <td><?php echo $media['user_id'] ?></div></td>
-                            <td><?php echo ($media['job_id'] != '') ? $media['job_id'] : 'ジョブ未登録' ?></td>
-                            <td><?php echo ($media['job_id'] != '') ? $jobState::toString($media['job_state']) : '' ?></td>
+                            <td><?php echo ($media['job_id'] != '') ? $jobState::toString($media['job_state']) : 'ジョブ未登録' ?></td>
                             <td><?php echo $media['updated_at'] ?></td>
-                            <td>
-                                <?php if ($media['job_id']) { ?>
-                                <button type="button" class="btn btn-default" onclick="location.href='/media/<?php echo $media['id'] ?>/download'">動画ファイルをダウンロード</button>
-                                <?php } ?>
-                                <button type="button" class="btn btn-default" onclick="if (confirm('動画を削除しますか？')) {location.href='/media/<?php echo $media['id'] ?>/delete';}">削除</button>
-                            </td>
                         </tr>
                         <?php } ?>
                     </tbody>

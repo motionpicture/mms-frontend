@@ -46,6 +46,11 @@ $app->get('/media/new', function () use ($app) {
         'category_id' => ''
     ];
 
+    // 作品コードがURLで指定される場合
+    if (isset($_GET['mcode'])) {
+        $defaults['mcode'] = $_GET['mcode'];
+    }
+
     // カテゴリーを取得
     $categories = [];
     try {
@@ -238,76 +243,49 @@ $app->get('/medias', function () use ($app) {
 /**
  * メディア詳細
  */
-$app->get('/media/:id', function ($id) use ($app) {
-    $app->log->debug($id);
+$app->get('/media/:code', function ($code) use ($app) {
+    $app->log->debug('$code: ' . $code);
 
-    $media = null;
-    $urls = [
-        'smooth_streaming' => ''
-    ];
+    $medias = [];
 
     try {
-        $query = sprintf('SELECT media.*, category.name AS category_name FROM media INNER JOIN category ON media.category_id = category.id WHERE media.id = \'%s\';', $id);
-        $statement = $app->db->query($query);
-        $media = $statement->fetch(PDO::FETCH_ASSOC);
+        $query = "SELECT media.*, category.name AS category_name FROM media INNER JOIN category ON media.category_id = category.id WHERE media.code = '{$code}' ORDER BY media.version DESC";
 
-        if (isset($media['id'])) {
+        $result = $app->db->query($query);
+        if ($result === false || $result === 0) {
+            $egl = error_get_last();
+            $e = new Exception('sql exec error' . $egl['message']);
+            throw $e;
+        }
+        while ($res = $result->fetch(PDO::FETCH_ASSOC)) {
+            $medias[] = $res;
+        }
+
+        foreach ($medias as $key => $media) {
+            $medias[$key]['urls'] = array();
+
             // ストリーミングURLの取得
-            $query = sprintf('SELECT url FROM task WHERE media_id = \'%s\' AND name = \'smooth_streaming\' ORDER BY updated_at DESC;',
-                            $id);
+            $query = "SELECT url FROM task WHERE media_id = '{$media['id']}' AND name = 'smooth_streaming' ORDER BY updated_at DESC";
             $statement = $app->db->query($query);
             $url = $statement->fetchColumn();
-            $urls['smooth_streaming'] = $url;
+
+            $medias[$key]['urls']['smooth_streaming'] = $url;
         }
     } catch (Exception $e) {
         $app->log->debug(print_r($e, true));
         throw $e;
     }
 
-    $media['movie_name'] = '';
-    try {
-        $option = [
-            'soap' => [
-                'endPoint' => 'https://www.movieticket.jp',
-            ],
-            'blob' => [
-                'name' => 'testmovieticketfrontend',
-                'key' => 'c93s/ZXgTySSgB6FrCWvOXalfRxKQFd96s61X8TwMUc3jmjAeRyBY9jSMvVQXh4U9gIRNNH6mCkn44ZG/T3OXA==',
-            ],
-            'sendgrid' => [
-                'api_user' => 'azure_2fa68dcc38c9589d53104d96bc2798ed@azure.com',
-                'api_key' => 'pwmk27ud',
-                'from' => 'info@movieticket.jp',
-                'fromname' => 'ムビチケ',
-            ],
-        ];
-
-        $factory = new \MvtkService\Factory($option);
-        $service = $factory->createInstance('Film');
-        $params = [
-            'skhnCd' => $media['mcode'],
-            'dvcTyp' => \MvtkService\Common::DVC_TYP_PC,
-        ];
-        $film = $service->GetFilmDetail($params);
-        $film = $film->toArray();
-        $media['movie_name'] = $film['SKHN_NM'];
-    } catch (Exception $e) {
-        $app->log->debug(print_r($e, true));
-        $media['movie_name'] = $e->getMessage();
-    }
-
-    $app->log->debug(print_r($media, true));
-    $app->log->debug(print_r($urls, true));
+    $app->log->debug('$medias: ' . print_r($medias, true));
 
     return $app->render(
         'media/show.php',
         [
-            'media' => $media,
-            'urls' => $urls,
-            'jobState'   => new JobState,
+            'medias'   => $medias,
+            'jobState' => new JobState,
         ]
     );
-})->name('media');
+})->name('media_by_code');
 
 /**
  * メディアダウンロード
@@ -374,10 +352,13 @@ $app->get('/media/:id/download', function ($id) use ($app) {
 })->name('media_download');
 
 /**
- * メディア削除
+ * メディア更新
  */
-$app->get('/media/:id/delete', function ($id) use ($app) {
-    $app->log->debug($id);
+$app->post('/media/:id/update', function ($id) use ($app) {
+    $app->log->debug('$id: ' . $id);
+
+    $isSuccess = false;
+    $message = '予期せぬエラー';
 
     // メディアを取得
     $query = sprintf('SELECT * FROM media WHERE id = \'%s\';', $id);
@@ -385,8 +366,54 @@ $app->get('/media/:id/delete', function ($id) use ($app) {
     $media = $statement->fetch(PDO::FETCH_ASSOC);
 
     if (isset($media['id'])) {
-        $isDeleted = false;
+        // トランザクションの開始
+        $app->db->beginTransaction();
+        try {
+            $values = [];
+            $values['start_at'] = $app->db->quote($_POST['start_at']);
+            $values['end_at'] = $app->db->quote($_POST['end_at']);
 
+            $query = "UPDATE media SET start_at = {$values['start_at']}, end_at = {$values['end_at']}, updated_at = datetime('now', 'localtime') WHERE id = '{$id}';";
+            $app->log->debug('$query:' . $query);
+            $result = $app->db->exec($query);
+            if ($result === false || $result === 0) {
+                $egl = error_get_last();
+                $e = new Exception('SQLの実行でエラーが発生しました' . $egl['message']);
+                throw $e;
+            }
+
+            $app->db->commit();
+            $isSuccess = true;
+            $message = '';
+        } catch (Exception $e) {
+            $app->db->rollBack();
+            $message = $e->getMessage();
+            $app->log->debug('fail in updating media by id $id: '. $id . ' / $message: ' . $message);
+        }
+    }
+
+    echo json_encode([
+        'success' => $isSuccess,
+        'message' => $message
+    ]);
+    return;
+})->name('media_update_by_id');
+
+/**
+ * メディア削除
+ */
+$app->post('/media/:id/delete', function ($id) use ($app) {
+    $app->log->debug('$id: ' . $id);
+
+    $isSuccess = false;
+    $message = '予期せぬエラー';
+
+    // メディアを取得
+    $query = sprintf('SELECT * FROM media WHERE id = \'%s\';', $id);
+    $statement = $app->db->query($query);
+    $media = $statement->fetch(PDO::FETCH_ASSOC);
+
+    if (isset($media['id'])) {
         // トランザクションの開始
         $app->db->beginTransaction();
         try {
@@ -400,43 +427,46 @@ $app->get('/media/:id/delete', function ($id) use ($app) {
             }
 
             $app->db->commit();
-            $isDeleted = true;
+            $isSuccess = true;
+            $message = '';
         } catch (Exception $e) {
             $app->log->debug(print_r($e, true));
             $app->db->rollBack();
-            throw $e;
+            $message = $e->getMessage();
         }
 
         // ジョブがあればアセットも削除
-        try {
-            if ($media['job_id']) {
-                $mediaServicesWrapper = $app->getMediaServicesWrapper();
+        if ($isSuccess) {
+            try {
+                if ($media['job_id']) {
+                    $mediaServicesWrapper = $app->getMediaServicesWrapper();
 
-                // ジョブのアセットを取得
-                $inputAssets = $mediaServicesWrapper->getJobInputMediaAssets($media['job_id']);
-                $outputAssets = $mediaServicesWrapper->getJobOutputMediaAssets($media['job_id']);
+                    // ジョブのアセットを取得
+                    $inputAssets = $mediaServicesWrapper->getJobInputMediaAssets($media['job_id']);
+                    $outputAssets = $mediaServicesWrapper->getJobOutputMediaAssets($media['job_id']);
 
-                $app->log->debug('$inputAssets:' . print_r($inputAssets, true));
-                $app->log->debug('$outputAssets:' . print_r($outputAssets, true));
+                    $app->log->debug('$inputAssets:' . print_r($inputAssets, true));
+                    $app->log->debug('$outputAssets:' . print_r($outputAssets, true));
 
-                // アセット削除
-                foreach ($inputAssets as $asset) {
-                    $mediaServicesWrapper->deleteAsset($asset);
+                    // アセット削除
+                    foreach ($inputAssets as $asset) {
+                        $mediaServicesWrapper->deleteAsset($asset);
+                    }
+                    foreach ($outputAssets as $asset) {
+                        $mediaServicesWrapper->deleteAsset($asset);
+                    }
                 }
-                foreach ($outputAssets as $asset) {
-                    $mediaServicesWrapper->deleteAsset($asset);
-                }
+            } catch (Exception $e) {
+                $app->log->debug(print_r($e, true));
             }
-        } catch (Exception $e) {
-            $app->log->debug(print_r($e, true));
-        }
-
-        if ($isDeleted) {
-            $app->redirect('/medias', 303);
         }
     }
 
-    throw new Exception('予期せぬエラー');
+    echo json_encode([
+        'success' => $isSuccess,
+        'message' => $message
+    ]);
+    return;
 })->name('media_delete');
 
 /**

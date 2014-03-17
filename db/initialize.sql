@@ -8,7 +8,6 @@ CREATE TABLE `media` (
     `extension` text NOT NULL,
     `user_id` text NOT NULL,
     `movie_name` text DEFAULT NULL,
-    `movie_ename` text DEFAULT NULL,
     `playtime_string` text DEFAULT NULL,
     `playtime_seconds` real DEFAULT NULL,
     `job_id` text DEFAULT NULL,
