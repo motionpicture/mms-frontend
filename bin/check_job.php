@@ -25,7 +25,7 @@ class MmsBinCheckJobActions extends MmsBinActions
                             Job::STATE_SCHEDULED,
                             Job::STATE_PROCESSING);
             $result = $this->db->query($query);
-            while ($res = $result->fetchArray(SQLITE3_ASSOC)) {
+            while ($res = $result->fetch(PDO::FETCH_ASSOC)) {
                 $medias[] = $res;
             }
         } catch (Exception $e) {
@@ -33,7 +33,7 @@ class MmsBinCheckJobActions extends MmsBinActions
         }
 
         foreach ($medias as $media) {
-            $this->log("\n--------------------\n" . $media['id'] . 'のジョブ進捗を確認しています...' . "\n--------------------\n");
+            $this->log("\n--------------------\n" . $media['id'] . ' checking job state...' . "\n--------------------\n");
             try {
                 $url = $this->tryDeliverMedia($media['id'], $media['job_id'], $media['job_state']);
 
@@ -72,7 +72,7 @@ class MmsBinCheckJobActions extends MmsBinActions
             // メディアサービスよりジョブを取得
             $job = $mediaServicesWrapper->getJob($jobId);
         } catch (Exception $e) {
-            $this->log('メディアサービスよりジョブを取得中のエラー: ' . $e->getMessage());
+            $this->log('fail in getting job from media service: ' . $e->getMessage());
         }
 
         if (!is_null($job)) {
@@ -110,7 +110,7 @@ class MmsBinCheckJobActions extends MmsBinActions
                         }
                     }
                 } catch (Exception $e) {
-                    $this->log('ジョブのアウトプットアセットに対してストリーミングURL発行中にエラー: ' . $e->getMessage());
+                    $this->log('fail in delivering url for streaming: ' . $e->getMessage());
                 }
             // 未完了の場合、ステータスの更新のみ
             } else {
@@ -123,21 +123,24 @@ class MmsBinCheckJobActions extends MmsBinActions
 
             if ($query != '') {
                 // トランザクションの開始
-                $this->db->exec('BEGIN DEFERRED;');
+                $this->db->beginTransaction();
+
                 try {
                     // コミット
-                    $query .= 'COMMIT;';
                     $this->log('$query: ' . $query);
-                    if (!$this->db->exec($query)) {
+                    $result =  $this->db->exec($query);
+                    if ($result === false || $result === 0) {
                         $egl = error_get_last();
-                        $e = new Exception('SQLの実行でエラーが発生しました' . $egl['message']);
+                        $e = new Exception('sql exec error: ' . $egl['message']);
                         throw $e;
                     }
+
+                    $this->db->commit();
                 } catch (Exception $e) {
                     $this->log($e->getMessage());
 
                     // ロールバック
-                    $this->db->exec('ROLLBACK;');
+                    $this->db->rollBack();
                     $url = null;
                 }
             }
@@ -169,7 +172,7 @@ class MmsBinCheckJobActions extends MmsBinActions
         foreach ($locators as $locator) {
             if ($locator->getType() == Locator::TYPE_ON_DEMAND_ORIGIN) {
                 $mediaServicesWrapper->deleteLocator($locator);
-                $this->log('OnDemandOriginロケーターを削除しました $locator: '. print_r($locator, true));
+                $this->log('OnDemandOrigin locator has been deleted. $locator: '. print_r($locator, true));
             }
         }
 
@@ -196,7 +199,7 @@ class MmsBinCheckJobActions extends MmsBinActions
                 break;
         }
 
-        $this->log('発行されたURL: ' . $url);
+        $this->log('url has been created: ' . $url);
         $this->log("\n--------------------\n" . 'end function: ' . __FUNCTION__ . "\n--------------------\n");
 
         return $url;
@@ -208,7 +211,8 @@ class MmsBinCheckJobActions extends MmsBinActions
         $this->log('args: ' . print_r(func_get_args(), true));
 
         $query = sprintf('SELECT email FROM user WHERE id = \'%s\';', $userId);
-        $email = $this->db->querySingle($query);
+        $statement = $this->db->query($query);
+        $email = $statement->fetchColumn();
         $this->log('$email:' . $email);
 
         // 送信

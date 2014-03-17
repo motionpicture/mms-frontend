@@ -7,16 +7,35 @@
         {
             "type": "pear",
             "url": "http://pear.php.net"
+        },
+        {
+            "type": "package",
+            "package": {
+                "name": "JamesHeinrich/getID3",
+                "version": "dev-master",
+                "source": {
+                    "url": "https://github.com/JamesHeinrich/getID3.git",
+                    "type": "git",
+                    "reference": "master"
+                }
+            }
         }
     ],
     "require": {
         "motionpicture/mvtkservice" : "dev-master",
         "slim/slim": "2.*",
-        "microsoft/windowsazure": "*"
+        "microsoft/windowsazure": "*",
+        "jamesheinrich/getid3" : "dev-master"
     },
     "require-dev": {
         "codeception/codeception": "*",
         "filp/whoops": "1.*"
     },
-    "minimum-stability": "dev"
+    "minimum-stability": "dev",
+    "autoload": {
+        "psr-0": {
+            "getID3": "src/"
+        },
+        "classmap": ["vendor/JamesHeinrich/getID3/getid3/"]
+    }
 }

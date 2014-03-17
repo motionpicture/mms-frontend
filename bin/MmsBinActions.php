@@ -4,7 +4,6 @@ ini_set('display_errors', 1);
 // デフォルトタイムゾーン
 date_default_timezone_set('Asia/Tokyo');
 
-require_once dirname(__FILE__) . '/../lib/MmsDb.php';
 require_once dirname(__FILE__) . '/../vendor/autoload.php';
 
 use WindowsAzure\Common\Internal\MediaServicesSettings;
@@ -20,7 +19,7 @@ class MmsBinActions
 
     function __construct()
     {
-        $this->db = new MmsDb();
+        $this->db = new PDO('sqlite:' . dirname(__FILE__) . '/../db/mms.db');
 
         $this->logFile = dirname(__FILE__) . '/../log/mms_bin.log';
 

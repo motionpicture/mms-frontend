@@ -4,6 +4,7 @@
 uploads/*
 !uploads/.gitkeep
 
+mode.php
 composer.lock
 vendor
 

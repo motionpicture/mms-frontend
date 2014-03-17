@@ -43,9 +43,6 @@ class MmsBinProcessActions extends MmsBinActions
     private static $filePath = null;
     private static $mediaId = null;
 
-    // WindowsAzure\MediaServices\Models\Job $job
-    private static $job = null;
-
     /**
      * __construct
      *
@@ -60,13 +57,23 @@ class MmsBinProcessActions extends MmsBinActions
         self::$filePath = $filePath;
 
         $this->log(date('[Y/m/d H:i:s]') . ' start process');
+        $this->log('$filePath: ' . $filePath);
 
         try {
+            if (!file_exists(self::$filePath)) {
+                $e = new Exception('file does not exists.');
+                throw $e;
+            }
+
             $this->createMedia();
 
-            $this->createJob();
+            $job = $this->createJob();
 
-            $this->updateMedia();
+            if (!is_null($job)) {
+                $this->updateMedia($job->getId(), $job->getState());
+
+                unlink(self::$filePath);
+            }
         } catch (Exception $e) {
             $this->log($e->getMessage());
         }
@@ -103,14 +110,32 @@ class MmsBinProcessActions extends MmsBinActions
             'extension'   => $extension,
         ];
 
+        // バージョンを確定
         $query = sprintf('SELECT MAX(version) AS max_version FROM media WHERE mcode = \'%s\' AND category_id = \'%s\';',
                         $media['mcode'],
                         $media['category_id']);
-        $maxVersion = $this->db->querySingle($query);
-        // バージョンを確定
-        $media['version'] = $maxVersion + 1;
-        // 作品コード、カテゴリー、バージョンからIDを生成
-        $media['id'] = implode('_', array($media['mcode'], $media['category_id'], $media['version']));
+        $statement = $this->db->query($query);
+        $maxVersion = $statement->fetchColumn();
+        if (is_null($maxVersion)) {
+            $media['version'] = 0;
+        } else {
+            $media['version'] = $maxVersion + 1;
+        }
+
+        // 作品コード、カテゴリーからコードを生成
+        $media['code'] = implode('_', array($media['mcode'], $media['category_id']));
+        // コード、バージョンからIDを生成
+        $media['id'] = implode('_', array($media['code'], $media['version']));
+
+        // 再生時間を取得
+        $getID3 = new \getID3;
+        $fileInfo = $getID3->analyze(self::$filePath);
+        if (isset($fileInfo['playtime_string'])) {
+            $media['playtime_string'] = $fileInfo['playtime_string'];
+        }
+        if (isset($fileInfo['playtime_seconds'])) {
+            $media['playtime_seconds'] = $fileInfo['playtime_seconds'];
+        }
 
         $this->log('$media: ' . print_r($media, true));
         $this->log("\n--------------------\n" . 'end function: ' . __FUNCTION__ . "\n--------------------\n");
@@ -126,38 +151,42 @@ class MmsBinProcessActions extends MmsBinActions
         $this->log("\n--------------------\n" . 'start function: ' . __FUNCTION__ . "\n--------------------\n");
 
         // トランザクションの開始
-        $this->db->exec('BEGIN DEFERRED;');
+        $this->db->beginTransaction();
 
         try {
             $media = $this->path2media(self::$filePath);
 
-            $query = sprintf("INSERT INTO media (id, mcode, size, extension, version, user_id, category_id, created_at, updated_at) VALUES ('%s', '%s', '%s', '%s', '%s', '%s', '%s', %s, %s);",
-                            $media['id'],
-                            $media['mcode'],
-                            $media['size'],
-                            $media['extension'],
-                            $media['version'],
-                            $media['user_id'],
-                            $media['category_id'],
-                            'datetime(\'now\', \'localtime\')',
-                            'datetime(\'now\', \'localtime\')');
+            $query = sprintf(
+                "INSERT INTO media (id, code, mcode, size, extension, version, user_id, playtime_string, playtime_seconds, category_id, created_at, updated_at) VALUES ('%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', datetime('now', 'localtime'), datetime('now', 'localtime'));",
+                $media['id'],
+                $media['code'],
+                $media['mcode'],
+                $media['size'],
+                $media['extension'],
+                $media['version'],
+                $media['user_id'],
+                $media['playtime_string'],
+                $media['playtime_seconds'],
+                $media['category_id']
+            );
             $this->log('$query:' . $query);
-            if (!$this->db->exec($query)) {
+            $result =  $this->db->exec($query);
+            if ($result === false || $result === 0) {
                 $egl = error_get_last();
-                $e = new Exception('SQLの実行でエラーが発生しました' . $egl['message']);
+                $e = new Exception('sql exec error' . $egl['message']);
                 throw $e;
             }
 
             // コミット
-            $this->db->exec('COMMIT;');
+            $this->db->commit();
             self::$mediaId = $media['id'];
 
-            $this->log('メディアを登録しました mediaId: ' . self::$mediaId);
+            $this->log('media has been created. mediaId: ' . self::$mediaId);
         } catch (Exception $e) {
-            $this->log('メディアの登録に失敗しました: ' . $e->getMessage());
+            $this->log('fail in creating media: ' . $e->getMessage());
 
             // ロールバック
-            $this->db->exec('ROLLBACK;');
+            $this->db->rollBack();
 
             throw $e;
         }
@@ -168,6 +197,8 @@ class MmsBinProcessActions extends MmsBinActions
     /**
      * media serviceのjobを作成する
      *
+     * @return object
+     *
      */
     private function createJob()
     {
@@ -175,7 +206,7 @@ class MmsBinProcessActions extends MmsBinActions
 
         $filepath = self::$filePath;
         if (is_null($filepath)) {
-            return;
+            return null;
         }
 
         $asset = null;
@@ -190,9 +221,9 @@ class MmsBinProcessActions extends MmsBinActions
             $asset->setName(self::$mediaId);
             $asset = $mediaServicesWrapper->createAsset($asset);
 
-            $this->log('アセットを作成しました: ' . print_r($asset, true));
+            $this->log('asset has been created: ' . print_r($asset, true));
         } catch (Exception $e) {
-            $this->log('アセットの作成に失敗しました: ' . $e->getMessage());
+            $this->log('fail in creating asset: ' . $e->getMessage());
             throw $e;
         }
 
@@ -204,7 +235,7 @@ class MmsBinProcessActions extends MmsBinActions
 
             $isUploaded = true;
         } catch (Exception $e) {
-            $this->log('ブロブのコミットに失敗しました: ' . $e->getMessage());
+            $this->log('fail in commiting blob: ' . $e->getMessage());
             throw $e;
         }
 
@@ -214,7 +245,7 @@ class MmsBinProcessActions extends MmsBinActions
                 $mediaServicesWrapper->deleteAsset($asset);
             }
         } catch (Exception $e) {
-            $this->log('アセットの削除に失敗しました: ' . $e->getMessage());
+            $this->log('fail in deleting asset: ' . $e->getMessage());
             throw $e;
         }
 
@@ -241,15 +272,16 @@ class MmsBinProcessActions extends MmsBinActions
             $job = new Job();
             $job->setName('job_for_' . self::$mediaId);
             $job = $mediaServicesWrapper->createJob($job, array($asset), array($task));
-            self::$job = $job;
 
-            $this->log('ジョブを作成しました: ' . print_r(self::$job, true));
+            $this->log('job has been created: ' . print_r($job, true));
         } catch (Exception $e) {
-            $this->log('ジョブの作成に失敗しました: ' . $e->getMessage());
+            $this->log('fail in creating job: ' . $e->getMessage());
             throw $e;
         }
 
         $this->log("\n--------------------\n" . 'end function: ' . __FUNCTION__ . "\n--------------------\n");
+
+        return $job;
     }
 
     /**
@@ -430,13 +462,13 @@ class MmsBinProcessActions extends MmsBinActions
             $job = new Job();
             $job->setName('job_for_' . self::$mediaId);
             $job = $mediaServicesWrapper->createJob($job, array($asset), array($task));
-            self::$job = $job;
         } catch (Exception $e) {
             $this->log($e->getMessage());
         }
 
-        $this->log('$job: ' . print_r(self::$job, true));
         $this->log("\n--------------------\n" . 'end function: ' . __FUNCTION__ . "\n--------------------\n");
+
+        return $job;
     }
 
     /**
@@ -463,7 +495,7 @@ class MmsBinProcessActions extends MmsBinActions
         $fp = fopen($path, 'rb');
         if ($fp === false) {
             $egl = error_get_last();
-            $e = new Exception('ファイルを開くことができませんでした' . $egl['message']);
+            $e = new Exception('cannot open file: ' . $egl['message']);
             throw $e;
         }
         $ch = curl_init($url);
@@ -543,7 +575,7 @@ class MmsBinProcessActions extends MmsBinActions
         fclose($content);
         $result = $blobRestProxy->commitBlobBlocks($containerName, $blobName, $blockIds);
 
-        $this->log('ブロブコミットの結果: ' . print_r($result, true));
+        $this->log('result of commiting blob: ' . print_r($result, true));
         $this->log("\n--------------------\n" . 'end function: ' . __FUNCTION__ . "\n--------------------\n");
     }
 
@@ -602,7 +634,7 @@ class MmsBinProcessActions extends MmsBinActions
         $fp = fopen($tmpFile, 'w+');
         if ($fp === false) {
             $egl = error_get_last();
-            $e = new Exception('ファイルを開くことができませんでした' . $egl['message']);
+            $e = new Exception('cannot open file: ' . $egl['message']);
             throw $e;
         }
         fwrite($fp, $content);
@@ -611,7 +643,7 @@ class MmsBinProcessActions extends MmsBinActions
         $fp = fopen($tmpFile, 'rb');
         if ($fp === false) {
             $egl = error_get_last();
-            $e = new Exception('ファイルを開くことができませんでした' . $egl['message']);
+            $e = new Exception('cannot open file: ' . $egl['message']);
             throw $e;
         }
 
@@ -637,7 +669,7 @@ class MmsBinProcessActions extends MmsBinActions
         curl_setopt_array($ch, $options);
 
         $result = curl_exec($ch);
-        $this->log('ブロブブロック作成結果: ' . print_r($result, true));
+        $this->log('result of creating blob block: ' . print_r($result, true));
         fclose($fp);
 
         // 一時ファイルを削除
@@ -669,31 +701,43 @@ class MmsBinProcessActions extends MmsBinActions
     /**
      * DBのメディアをジョブ情報で更新する
      *
+     * @param string $jobId
+     * @param string $jobState
      * @return none
      */
-    private function updateMedia()
+    private function updateMedia($jobId, $jobState)
     {
         $this->log("\n--------------------\n" . 'start function: ' . __FUNCTION__ . "\n--------------------\n");
+        $this->log('args: ' . print_r(func_get_args(), true));
 
-        if (is_null(self::$job) || is_null(self::$mediaId)) {
-            return;
+        if (is_null($jobId) || is_null($jobState)) {
+            $e = new Exception('job id & job state are required.');
+            $this->log('fail in updating media: ' . $e->getMessage());
+            throw $e;
         }
 
         // ジョブ情報をDBに登録
+        $this->db->beginTransaction();
+
         try {
             $query = sprintf("UPDATE media SET job_id = '%s', job_state = '%s', updated_at = %s WHERE id = '%s';",
-                            self::$job->getId(),
-                            self::$job->getState(),
+                            $jobId,
+                            $jobState,
                             'datetime(\'now\', \'localtime\')',
                             self::$mediaId);
             $this->log('$query:' . $query);
-            if (!$this->db->exec($query)) {
+            $result =  $this->db->exec($query);
+            if ($result === false || $result === 0) {
                 $egl = error_get_last();
-                $e = new Exception('SQLの実行でエラーが発生しました' . $egl['message']);
+                $e = new Exception('sql exec error: ' . $egl['message']);
                 throw $e;
             }
+
+            $this->db->commit();
         } catch (Exception $e) {
-            $this->log('メディアの更新に失敗しました: ' . $e->getMessage());
+            $this->log('fail in updating media: ' . $e->getMessage());
+            $this->db->rollBack();
+            throw $e;
         }
 
         $this->log("\n--------------------\n" . 'end function: ' . __FUNCTION__ . "\n--------------------\n");
