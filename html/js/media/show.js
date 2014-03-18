@@ -1,4 +1,6 @@
 $(function() {
+    $('input[name="start_at"], input[name="end_at"]').datepicker();
+
     $('.update-media').click(function(e){
         var ladda = Ladda.create(this);
         ladda.start();

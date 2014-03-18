@@ -10,7 +10,7 @@
             <div class="row">
                 <div class="col-xs-12 col-sm-12 col-lg-12">
                     <div class="table-responsive">
-                        <table class="table table-striped">
+                        <table class="table table-bordered table-striped">
                             <tbody>
                                 <tr>
                                     <td>作品コード</td>
@@ -18,7 +18,7 @@
                                 </tr>
                                 <tr>
                                     <td>作品名</td>
-                                    <td><?php echo $medias[0]['movie_name'] ?></td>
+                                    <td><input class="form-control" type="text" name="movie_name" value="<?php echo $medias[0]['movie_name'] ?>"></td>
                                 </tr>
                                 <tr>
                                     <td>カテゴリー</td>
@@ -40,46 +40,46 @@
                 <span class="media-id hide"><?php echo $media['id'] ?></span>
                 <div class="col-xs-12 col-sm-6 col-lg-6">
                     <div class="table-responsive">
-                        <table class="table table-striped">
+                        <table class="table table-bordered table-striped">
                             <tbody>
                                 <tr>
-                                    <td>公開開始日時</td>
-                                    <td><input type="text" name="start_at" value="<?php echo $media['start_at'] ?>"></td>
+                                    <th>公開開始日時</th>
+                                    <td><input class="form-control" type="text" name="start_at" value="<?php echo $media['start_at'] ?>"></td>
                                 </tr>
                                 <tr>
-                                    <td>公開終了日時</td>
-                                    <td><input type="text" name="end_at" value="<?php echo $media['end_at'] ?>"></td>
+                                    <th>公開終了日時</th>
+                                    <td><input class="form-control" type="text" name="end_at" value="<?php echo $media['end_at'] ?>"></td>
                                 </tr>
                                 <tr>
-                                    <td>サイズ</td>
+                                    <th>サイズ</th>
                                     <td><?php echo $media['size'] ?>バイト</td>
                                 </tr>
                                 <tr>
-                                    <td>再生時間</td>
+                                    <th>再生時間</th>
                                     <td><?php echo $media['playtime_string'] ?></td>
                                 </tr>
                                 <tr>
-                                    <td>登録者</td>
+                                    <th>登録者</th>
                                     <td><?php echo $media['user_id'] ?></td>
                                 </tr>
                                 <tr>
-                                    <td>ジョブ進捗</td>
+                                    <th>ジョブ進捗</th>
                                     <td><?php echo $jobState::toString($media['job_state']) ?></td>
                                 </tr>
                                 <tr>
-                                    <td>ジョブ開始日時</td>
+                                    <th>ジョブ開始日時</th>
                                     <td><?php echo $media['job_start_at'] ?></td>
                                 </tr>
                                 <tr>
-                                    <td>ジョブ完了or失敗orキャンセル日時</td>
+                                    <th>ジョブ完了or失敗orキャンセル日時</th>
                                     <td><?php echo $media['job_end_at'] ?></td>
                                 </tr>
                                 <tr>
-                                    <td>登録日時</td>
+                                    <th>登録日時</th>
                                     <td><?php echo $media['created_at'] ?></td>
                                 </tr>
                                 <tr>
-                                    <td>MPEG DASH URL</td>
+                                    <th>MPEG DASH URL</th>
                                     <td><?php echo ($media['urls']['smooth_streaming']) ? mb_strimwidth($media['urls']['smooth_streaming'] . '(format=mpd-time-csf)', 0, 60, '...') : '' ?></td>
                                 </tr>
                             </tbody>

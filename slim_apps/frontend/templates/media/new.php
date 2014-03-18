@@ -7,7 +7,7 @@
 
             <?php if ($message) { ?><p class="error" style="color: #FF0000;"><?php echo $message ?></p><?php } ?>
 
-            <form class="navbar-form" role="search" enctype="multipart/form-data" method="POST">
+            <form class="" role="search" enctype="multipart/form-data" method="POST">
                 <input type="hidden" name="MAX_FILE_SIZE" value="1000000000" />
 
                 <div class="form-group">
@@ -16,7 +16,7 @@
                     </p>
 
                     <p>
-                        <select name="category_id">
+                        <select name="category_id" class="form-control">
                         <option value ="">カテゴリーを選択してください</option>
                         <?php foreach ($categories as $id => $name) { ?>
                         <option value ="<?php echo $id ?>"<?php if ($defaults['category_id'] == $id) {echo ' selected';} ?>><?php echo $name ?></option>
@@ -25,11 +25,11 @@
                     </p>
 
                     <p>
-                        <input type="file" name="file" value="">
+                        <input type="file" name="file" class="" value="">
                     </p>
 
                     <p>
-                        <button type="submit" class="btn btn-default">登録</button>
+                        <button type="submit" class="btn btn-primary">登録</button>
                     <p>
                 </div>
 
