@@ -1,14 +1,15 @@
 <?php
+namespace Mms\Bin;
+
 ini_set('display_errors', 1);
 
 // デフォルトタイムゾーン
 date_default_timezone_set('Asia/Tokyo');
 
 require_once dirname(__FILE__) . '/../vendor/autoload.php';
+require_once 'PDO.php';
 
-use WindowsAzure\Common\Internal\MediaServicesSettings;
-
-class MmsBinActions
+class BaseContext
 {
     public $db;
     public $logFile;
@@ -19,7 +20,7 @@ class MmsBinActions
 
     function __construct()
     {
-        $this->db = new PDO('sqlite:' . dirname(__FILE__) . '/../db/mms.db');
+        $this->db = PDO::getInstance();
 
         $this->logFile = dirname(__FILE__) . '/../log/mms_bin.log';
 
@@ -38,13 +39,13 @@ class MmsBinActions
     {
         if (!isset(self::$mediaServicesWrapper)) {
             // メディアサービス
-            $settings = new MediaServicesSettings(
+            $settings = new \WindowsAzure\Common\Internal\MediaServicesSettings(
                 'testmvtkms',
                 'Vi3fX70rZKrtk/DM6TRoJ/XpxmkC29LNOzWimE06rx4=',
-                WindowsAzure\Common\Internal\Resources::MEDIA_SERVICES_URL,
-                WindowsAzure\Common\Internal\Resources::MEDIA_SERVICES_OAUTH_URL
+                \WindowsAzure\Common\Internal\Resources::MEDIA_SERVICES_URL,
+                \WindowsAzure\Common\Internal\Resources::MEDIA_SERVICES_OAUTH_URL
             );
-            self::$mediaServicesWrapper = WindowsAzure\Common\ServicesBuilder::getInstance()->createMediaServicesService($settings);
+            self::$mediaServicesWrapper = \WindowsAzure\Common\ServicesBuilder::getInstance()->createMediaServicesService($settings);
         }
 
         return self::$mediaServicesWrapper;
@@ -64,7 +65,7 @@ class MmsBinActions
                 'testmvtkmsst',
                 '+aoUiBttXAZovixNHuNxnkNaMbj2ZWDBzJvkG+FQ0EMmwbGtvEgryoqlQDkq+OxmQomRDQCKZitgeGfAk299Lg=='
             );
-            self::$blobServicesWrapper = WindowsAzure\Common\ServicesBuilder::getInstance()->createBlobService($connectionString);
+            self::$blobServicesWrapper = \WindowsAzure\Common\ServicesBuilder::getInstance()->createBlobService($connectionString);
         }
 
         return self::$blobServicesWrapper;
@@ -78,7 +79,7 @@ class MmsBinActions
     public function getBlobAuthenticationScheme()
     {
         if (!isset(self::$blobAuthenticationScheme)) {
-            self::$blobAuthenticationScheme = new WindowsAzure\Common\Internal\Authentication\SharedKeyAuthScheme(
+            self::$blobAuthenticationScheme = new \WindowsAzure\Common\Internal\Authentication\SharedKeyAuthScheme(
                 'testmvtkmsst',
                 '+aoUiBttXAZovixNHuNxnkNaMbj2ZWDBzJvkG+FQ0EMmwbGtvEgryoqlQDkq+OxmQomRDQCKZitgeGfAk299Lg=='
             );
