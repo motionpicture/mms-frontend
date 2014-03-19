@@ -17,7 +17,9 @@ class EndedMedias extends BaseContext
 
     public function delete()
     {
-        $where = "start_at IS NOT NULL AND end_at IS NOT NULL AND start_at < datetime('now', 'localtime') AND end_at < datetime('now', 'localtime')";
+        $where = "start_at IS NOT NULL AND end_at IS NOT NULL"
+               . " AND start_at <> '' AND end_at <> ''"
+               . " AND start_at < datetime('now', 'localtime') AND end_at < datetime('now', 'localtime')";
 
         // 公開終了日時の過ぎたメディアを取得
         $medias = [];
