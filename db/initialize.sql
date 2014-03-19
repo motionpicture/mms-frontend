@@ -1,3 +1,10 @@
+BEGIN;
+
+DROP TABLE IF EXISTS `media`;
+DROP TABLE IF EXISTS `task`;
+DROP TABLE IF EXISTS `category`;
+DROP TABLE IF EXISTS `user`;
+
 CREATE TABLE `media` (
     `id` text NOT NULL PRIMARY KEY,
     `code` text NOT NULL,
@@ -43,7 +50,6 @@ CREATE TABLE `user` (
     `updated_at` text NOT NULL
 );
 
-BEGIN;
 INSERT INTO category (name, created_at, updated_at) VALUES('特報', datetime('now', 'localtime'), datetime('now', 'localtime'));
 INSERT INTO category (name, created_at, updated_at) VALUES('予告編', datetime('now', 'localtime'), datetime('now', 'localtime'));
 INSERT INTO category (name, created_at, updated_at) VALUES('本編', datetime('now', 'localtime'), datetime('now', 'localtime'));
