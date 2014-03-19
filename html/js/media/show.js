@@ -1,7 +1,19 @@
 $(function() {
-    $('input[name="start_at"], input[name="end_at"]').datepicker();
+    $('input[name="start_at"], input[name="end_at"]').datetimepicker({
+        format: 'YYYY-MM-DD hh:mm:00',
+        pickDate: true,
+        pickTime: true,
+        useMinutes: true,
+        useSeconds: false,
+        useCurrent: true,
+        minuteStepping: 1,
+//        minDate: 1/1/1900,
+//        maxDate: (today +100 years),
+        showToday: true,
+        language:'ja', 
+    });
 
-    $('.update-media').click(function(e){
+    $('.update-media').on('click', function(e){
         var ladda = Ladda.create(this);
         ladda.start();
 
@@ -29,9 +41,11 @@ $(function() {
                 console.log(JSON.stringify(response));
 
                 if (response.success) {
-                    console.log('delete media success');
+                    console.log('update media success');
+                    alertTop('メディアを更新しました');
                 } else {
-                    console.log('delete media fail');
+                    console.log('update media fail');
+                    alertTop('メディアの更新に失敗しました');
                 }
 
             },
@@ -75,8 +89,11 @@ $(function() {
                     $(thisBtn).parent().prev('h3').remove();
                     $(thisBtn).parent().next('.row').remove();
                     $(thisBtn).parent().remove();
+
+                    alertTop('メディアを削除しました');
                 } else {
                     console.log('delete media fail');
+                    alertTop('メディアの削除に失敗しました');
                 }
 
             },

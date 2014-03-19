@@ -55,10 +55,8 @@ $app->get('/media/new', function () use ($app) {
     $categories = [];
     try {
         $query = 'SELECT id, name FROM category';
-        $result = $app->db->query($query);
-        while ($res = $result->fetch(PDO::FETCH_ASSOC)) {
-            $categories[$res['id']] = $res['name'];
-        }
+        $statement = $app->db->query($query);
+        $categories = $statement->fetchAll();
     } catch (Exception $e) {
         $this->log($e);
         throw $e;
@@ -85,10 +83,8 @@ $app->post('/media/new', function () use ($app) {
     $categories = [];
     try {
         $query = 'SELECT * FROM category';
-        $result = $app->db->query($query);
-        while ($res = $result->fetch(PDO::FETCH_ASSOC)) {
-            $categories[$res['id']] = $res['name'];
-        }
+        $statement = $app->db->query($query);
+        $categories = $statement->fetchAll();
     } catch (Exception $e) {
         $this->log($e);
         throw $e;
