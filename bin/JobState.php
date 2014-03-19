@@ -43,7 +43,7 @@ class JobState extends BaseContext
 
                 // URLが発行されればメール送信
                 if (!is_null($url)) {
-                    $this->sendEmail($media['id'], $media['user_id']);
+                    $this->sendEmail($media['code'], $media['user_id']);
                 }
             } catch (\Exception $e) {
                 $this->log($e->getMessage());
@@ -192,7 +192,13 @@ class JobState extends BaseContext
         return $url;
     }
 
-    private function sendEmail($mediaId, $userId)
+    /**
+     * ストリームURL発行お知らせメールを送信する
+     *
+     * @param string $mediaCode
+     * @param string $userId
+     */
+    private function sendEmail($mediaCode, $userId)
     {
         $this->log("\n--------------------\n" . 'start function: ' . __FUNCTION__ . "\n--------------------\n");
         $this->log('args: ' . print_r(func_get_args(), true));
@@ -205,7 +211,7 @@ class JobState extends BaseContext
         // 送信
         if ($email) {
             $subject = 'ストリーミングURLが発行さされました';
-            $message = 'http://pmmedia.cloudapp.net/media/' . $mediaId;
+            $message = 'http://pmmedia.cloudapp.net/media/' . $mediaCode;
             $headers = 'From: webmaster@pmmedia.cloudapp.net' . "\r\n"
             . 'Reply-To: webmaster@pmmedia.cloudapp.net';
             if (!mail($email, $subject, $message, $headers)) {
