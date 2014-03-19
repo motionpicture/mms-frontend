@@ -21,10 +21,14 @@ class EndedMedias extends BaseContext
 
         // 公開終了日時の過ぎたメディアを取得
         $medias = [];
+        $mediaIds = [];
         try {
-            $query = "SELECT * FROM media WHERE " . $where;
+            $query = "SELECT id, job_id FROM media WHERE " . $where;
             $statement = $this->db->query($query);
-            $medias = $statement->fetchAll();
+            while ($res = $statement->fetch()) {
+                $medias[] = $res;
+                $mediaIds[] = $res['id'];
+            }
         } catch (\Exception $e) {
             $this->log($e->getMessage());
             return;
@@ -32,29 +36,46 @@ class EndedMedias extends BaseContext
 
         $this->log('$medias: ' . count($medias));
 
-        $count4delete = 0;
-        try {
-            $query = "DELETE FROM media WHERE " . $where;
-            $this->log('$query:' . $query);
-            $count4delete = $this->db->exec($query);
-        } catch (\Exception $e) {
-            $this->log($e->getMessage());
-        }
+        $count4deleteMedia = 0;
+        $count4deleteTask = 0;
 
-        $this->log('$count4delete: ' . $count4delete);
+        if (!empty($medias)) {
+            $isDeleted = false;
+            $this->db->beginTransaction();
+            try {
+                // メディア削除
+                $query = "DELETE FROM media WHERE " . $where;
+                $this->log('$query:' . $query);
+                $count4deleteMedia = $this->db->exec($query);
 
-        if ($count4delete > 0) {
-            foreach ($medias as $media) {
-                // ジョブがあればアセットも削除
-                try {
-                    if ($media['job_id']) {
-                        $this->deleteAssets($media['job_id']);
+                // タスク削除
+                $query = "DELETE FROM task WHERE media_id IN ('" . implode("','", $mediaIds) . "')";
+                $this->log('$query:' . $query);
+                $count4deleteTask = $this->db->exec($query);
+
+                $this->db->commit();
+                $isDeleted = true;
+            } catch (\Exception $e) {
+                $this->db->rollBack();
+                $this->log($e->getMessage());
+            }
+
+            if ($isDeleted) {
+                foreach ($medias as $media) {
+                    // ジョブがあればアセットも削除
+                    try {
+                        if ($media['job_id']) {
+                            $this->deleteAssets($media['job_id']);
+                        }
+                    } catch (\Exception $e) {
+                        $this->log('fail in deleting assets. message: ' . $e->getMessage());
                     }
-                } catch (\Exception $e) {
-                    $this->log($e->getMessage());
                 }
             }
         }
+
+        $this->log('$count4deleteMedia: ' . $count4deleteMedia);
+        $this->log('$count4deleteTask: ' . $count4deleteTask);
     }
 
     /**
