@@ -13,6 +13,50 @@ $(function() {
         language:'ja', 
     });
 
+    $('.update-media-by-code').on('click', function(e){
+        var ladda = Ladda.create(this);
+        ladda.start();
+
+        var thisBtn = this;
+        var rootRow = $(thisBtn).parent().next('.row');
+        var mediaCode = $('span.media-code', rootRow).text();
+        var movieNamw = $('input[name="movie_name"]', rootRow).val();
+        var data = {
+            movie_name: movieNamw
+        };
+        console.log('mediaCode: ' + mediaCode);
+        console.log(data);
+
+        $.ajax({
+            type: 'post',
+            url: '/media/' + mediaCode + '/update_by_code',
+            data: data,
+            dataType: 'json',
+            complete: function(response) {
+                ladda.stop();
+            },
+            success: function(response) {
+                console.log(JSON.stringify(response));
+
+                if (response.success) {
+                    console.log('update media by code success');
+                    alertTop('メディアを更新しました');
+                } else {
+                    console.log('update media by code fail');
+                    alertTop('メディアの更新に失敗しました');
+                }
+
+            },
+            error: function(XMLHttpRequest, textStatus, errorThrown) {
+                console.log("XMLHttpRequest : " + XMLHttpRequest.status);
+                console.log("textStatus : " + textStatus);
+                console.log("errorThrown : " + errorThrown.message);
+            }
+        });
+
+        return false;
+    });
+
     $('.update-media').on('click', function(e){
         var ladda = Ladda.create(this);
         ladda.start();
@@ -20,6 +64,7 @@ $(function() {
         var thisBtn = this;
         var rootRow = $(thisBtn).parent().next('.row');
         var mediaId = $('span.media-id', rootRow).text();
+        var mediaVersion = $('span.media-version', rootRow).text();
         var startAt = $('input[name="start_at"]', rootRow).val();
         var endAt = $('input[name="end_at"]', rootRow).val();
         var data = {
@@ -42,10 +87,10 @@ $(function() {
 
                 if (response.success) {
                     console.log('update media success');
-                    alertTop('メディアを更新しました');
+                    alertTop('ver.' + mediaVersion + 'を更新しました');
                 } else {
                     console.log('update media fail');
-                    alertTop('メディアの更新に失敗しました');
+                    alertTop('ver.' + mediaVersion + 'の更新に失敗しました');
                 }
 
             },
@@ -68,7 +113,9 @@ $(function() {
         ladda.start();
 
         var thisBtn = this;
-        var mediaId = $('span.media-id', $(thisBtn).parent().next('.row')).text();
+        var rootRow = $(thisBtn).parent().next('.row');
+        var mediaId = $('span.media-id', rootRow).text();
+        var mediaVersion = $('span.media-version', rootRow).text();
         console.log('mediaId: ' + mediaId);
 
         $.ajax({
@@ -90,10 +137,10 @@ $(function() {
                     $(thisBtn).parent().next('.row').remove();
                     $(thisBtn).parent().remove();
 
-                    alertTop('メディアを削除しました');
+                    alertTop('ver.' + mediaVersion + 'を削除しました');
                 } else {
                     console.log('delete media fail');
-                    alertTop('メディアの削除に失敗しました');
+                    alertTop('ver.' + mediaVersion + 'の削除に失敗しました');
                 }
 
             },

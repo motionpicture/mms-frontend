@@ -51,6 +51,7 @@ table td {
                         <th>ユーザー</th>
                         <th>ジョブ進捗</th>
                         <th>更新日時</th>
+                        <th></th>
                     </tr>
                 </thead>
 
@@ -60,13 +61,18 @@ table td {
                         <td><a href="/media/<?php echo $media['code'] ?>"><?php echo $media['id'] ?></a></td>
                         <td><?php echo $media['mcode'] ?></td>
                         <td><?php echo $media['movie_name'] ?></td>
-                        <td><span class="label label-default"><?php echo $media['category_name'] ?></span></div></td>
+                        <td><?php echo $media['category_name'] ?></td>
                         <td><?php echo $media['versions'] ?></div></td>
                         <td><?php echo floor($media['size'] / 1000000) ?></div></td>
                         <td><?php echo $media['playtime_string'] ?></div></td>
                         <td><?php echo $media['user_id'] ?></div></td>
-                        <td><span class="label label-default"><?php echo ($media['job_id'] != '') ? $jobState::toString($media['job_state']) : 'ジョブ未登録' ?></span></td>
+                        <td><?php echo ($media['job_id'] != '') ? $jobState::toString($media['job_state']) : 'ジョブ未登録' ?></td>
                         <td><?php echo $media['updated_at'] ?></td>
+                        <td>
+                            <?php if ($media['job_id']) { ?>
+                            <button type="button" class="btn btn-default" onclick="location.href='/media/<?php echo $media['id'] ?>/download'">動画ファイルをダウンロード</button>
+                            <?php } ?>
+                        </td>
                     </tr>
                     <?php } ?>
                 </tbody>

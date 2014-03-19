@@ -15,7 +15,7 @@
                 </p>
 
                 <p>
-                    <button type="submit" class="btn btn-default">登録</button>
+                    <button type="submit" class="btn btn-primary">登録</button>
                 <p>
             </div>
 

@@ -169,8 +169,8 @@ $app->get('/medias', function () use ($app) {
     try {
         // カテゴリーを取得
         $query = 'SELECT id, name FROM category ORDER BY id ASC;';
-        $result = $app->db->query($query);
-        while ($res = $result->fetch(PDO::FETCH_ASSOC)) {
+        $statement = $app->db->query($query);
+        while ($res = $statement->fetch()) {
             $categories[] = $res;
             $searchConditions['category'][] = $res['id'];
         }
@@ -210,15 +210,8 @@ $app->get('/medias', function () use ($app) {
 
         $query .= ' ORDER BY m1.updated_at DESC';
 
-        $result = $app->db->query($query);
-        if ($result === false || $result === 0) {
-            $egl = error_get_last();
-            $e = new Exception('sql exec error' . $egl['message']);
-            throw $e;
-        }
-        while ($res = $result->fetch(PDO::FETCH_ASSOC)) {
-            $medias[] = $res;
-        }
+        $statement = $app->db->query($query);
+        $medias = $statement->fetchAll();
     } catch (Exception $e) {
         $app->log->debug(print_r($e, true));
 
@@ -247,15 +240,8 @@ $app->get('/media/:code', function ($code) use ($app) {
     try {
         $query = "SELECT media.*, category.name AS category_name FROM media INNER JOIN category ON media.category_id = category.id WHERE media.code = '{$code}' ORDER BY media.version DESC";
 
-        $result = $app->db->query($query);
-        if ($result === false || $result === 0) {
-            $egl = error_get_last();
-            $e = new Exception('sql exec error' . $egl['message']);
-            throw $e;
-        }
-        while ($res = $result->fetch(PDO::FETCH_ASSOC)) {
-            $medias[] = $res;
-        }
+        $statement = $app->db->query($query);
+        $medias = $statement->fetchAll();
 
         foreach ($medias as $key => $media) {
             $medias[$key]['urls'] = array();
@@ -290,9 +276,9 @@ $app->get('/media/:id/download', function ($id) use ($app) {
     $app->log->debug($id);
 
     try {
-        $query = sprintf('SELECT * FROM media WHERE id = \'%s\';', $id);
+        $query = "SELECT * FROM media WHERE id = '{$id}'";
         $statement = $app->db->query($query);
-        $media = $statement->fetch(PDO::FETCH_ASSOC);
+        $media = $statement->fetch();
 
         if (isset($media['id']) && $media['job_id']) {
             $mediaServicesWrapper = $app->getMediaServicesWrapper();
@@ -357,13 +343,12 @@ $app->post('/media/:id/update', function ($id) use ($app) {
     $message = '予期せぬエラー';
 
     // メディアを取得
-    $query = sprintf('SELECT * FROM media WHERE id = \'%s\';', $id);
+    $query = "SELECT * FROM media WHERE id = '{$id}'";
     $statement = $app->db->query($query);
-    $media = $statement->fetch(PDO::FETCH_ASSOC);
+    $media = $statement->fetch();
 
+    $count4update = 0;
     if (isset($media['id'])) {
-        // トランザクションの開始
-        $app->db->beginTransaction();
         try {
             $values = [];
             $values['start_at'] = $app->db->quote($_POST['start_at']);
@@ -371,22 +356,16 @@ $app->post('/media/:id/update', function ($id) use ($app) {
 
             $query = "UPDATE media SET start_at = {$values['start_at']}, end_at = {$values['end_at']}, updated_at = datetime('now', 'localtime') WHERE id = '{$id}';";
             $app->log->debug('$query:' . $query);
-            $result = $app->db->exec($query);
-            if ($result === false || $result === 0) {
-                $egl = error_get_last();
-                $e = new Exception('SQLの実行でエラーが発生しました' . $egl['message']);
-                throw $e;
-            }
-
-            $app->db->commit();
+            $count4update = $app->db->exec($query);
             $isSuccess = true;
             $message = '';
         } catch (Exception $e) {
-            $app->db->rollBack();
             $message = $e->getMessage();
             $app->log->debug('fail in updating media by id $id: '. $id . ' / $message: ' . $message);
         }
     }
+
+    $app->log->debug('$count4update:' . $count4update);
 
     echo json_encode([
         'success' => $isSuccess,
@@ -396,6 +375,39 @@ $app->post('/media/:id/update', function ($id) use ($app) {
 })->name('media_update_by_id');
 
 /**
+ * コードからメディア更新
+ */
+$app->post('/media/:code/update_by_code', function ($code) use ($app) {
+    $app->log->debug('$code: ' . $code);
+
+    $isSuccess = false;
+    $message = '予期せぬエラー';
+    $count4update = 0;
+
+    try {
+        $values = [];
+        $values['movie_name'] = $app->db->quote($_POST['movie_name']);
+
+        $query = "UPDATE media SET movie_name = {$values['movie_name']}, updated_at = datetime('now', 'localtime') WHERE code = '{$code}';";
+        $app->log->debug('$query:' . $query);
+        $count4update = $app->db->exec($query);
+        $isSuccess = true;
+        $message = '';
+    } catch (Exception $e) {
+        $message = $e->getMessage();
+        $app->log->debug('fail in updating media by id $id: '. $id . ' / $message: ' . $message);
+    }
+
+    $app->log->debug('$count4update: ' . $count4update);
+
+    echo json_encode([
+        'success' => $isSuccess,
+        'message' => $message
+    ]);
+    return;
+})->name('media_update_by_code');
+
+/**
  * メディア削除
  */
 $app->post('/media/:id/delete', function ($id) use ($app) {
@@ -403,24 +415,25 @@ $app->post('/media/:id/delete', function ($id) use ($app) {
 
     $isSuccess = false;
     $message = '予期せぬエラー';
+    $count4deleteMedia = 0;
+    $count4deleteTask = 0;
 
     // メディアを取得
-    $query = sprintf('SELECT * FROM media WHERE id = \'%s\';', $id);
+    $query = "SELECT * FROM media WHERE id = '{$id}'";
     $statement = $app->db->query($query);
-    $media = $statement->fetch(PDO::FETCH_ASSOC);
+    $media = $statement->fetch();
 
     if (isset($media['id'])) {
         // トランザクションの開始
         $app->db->beginTransaction();
         try {
-            $query = sprintf('DELETE FROM media WHERE id = \'%s\';', $id);
+            $query = "DELETE FROM media WHERE id = '{$id}'";
             $app->log->debug('$query:' . $query);
-            $result = $app->db->exec($query);
-            if ($result === false || $result === 0) {
-                $egl = error_get_last();
-                $e = new Exception('SQLの実行でエラーが発生しました' . $egl['message']);
-                throw $e;
-            }
+            $count4deleteMedia = $app->db->exec($query);
+
+            $query = "DELETE FROM task WHERE media_id = '{$id}'";
+            $app->log->debug('$query:' . $query);
+            $count4deleteTask = $app->db->exec($query);
 
             $app->db->commit();
             $isSuccess = true;
@@ -453,10 +466,13 @@ $app->post('/media/:id/delete', function ($id) use ($app) {
                     }
                 }
             } catch (Exception $e) {
-                $app->log->debug(print_r($e, true));
+                $app->log->debug('fail in deleting assets. message: ' . $e->getMessage());
             }
         }
     }
+
+    $app->log->debug('$count4deleteMedia: ' . $count4deleteMedia);
+    $app->log->debug('$count4deleteTask: ' . $count4deleteTask);
 
     echo json_encode([
         'success' => $isSuccess,
@@ -474,9 +490,7 @@ $app->get('/media/stream/:mcode/:category', function ($mcode, $category) use ($a
     $maxVersion = '';
 
     try {
-        $query = sprintf('SELECT MAX(version) AS max_version FROM media WHERE mcode = \'%s\' AND category_id = \'%s\';',
-                        $mcode,
-                        $category);
+        $query = "SELECT MAX(version) AS max_version FROM media WHERE mcode = '{$mcode}' AND category_id = '{$category}'";
         $statement = $app->db->query($query);
         $maxVersion = $statement->fetchColumn();
     } catch (Exception $e) {
@@ -502,8 +516,7 @@ $app->get('/media/stream/:mcode/:category/:version', function ($mcode, $category
         $id = sprintf('%s_%s_%s', $mcode, $category, $version);
 
         // ストリーミングURLの取得
-        $query = sprintf('SELECT url FROM task WHERE media_id = \'%s\' AND name = \'smooth_streaming\' ORDER BY updated_at DESC;',
-                        $id);
+        $query = "SELECT url FROM task WHERE media_id = '{$id}' AND name = 'smooth_streaming' ORDER BY updated_at DESC";
         $statement = $app->db->query($query);
         $url = $statement->fetchColumn();
     } catch (Exception $e) {
@@ -527,6 +540,7 @@ $app->get('/user/edit', function () use ($app) {
 
     $query = sprintf('SELECT email FROM user WHERE id = \'%s\';',
                     $_SERVER['PHP_AUTH_USER']);
+    $query = "SELECT email FROM user WHERE id = '{$_SERVER['PHP_AUTH_USER']}'";
     $statement = $app->db->query($query);
     $email = $statement->fetchColumn();
 
@@ -573,38 +587,17 @@ $app->post('/user/edit', function () use ($app) {
         );
     }
 
-    $isSaved = false;
     try {
-        // トランザクションの開始
-        $app->db->beginTransaction();
-
-        $isSaved = false;
-
-        $query = sprintf("UPDATE user SET email = '%s', updated_at = datetime('now') WHERE id = '%s';",
-                        $_POST['email'],
-                        $_SERVER['PHP_AUTH_USER']);
+        $email = $app->db->quote($_POST['email']);
+        $query = "UPDATE user SET email = {$email}, updated_at = datetime('now') WHERE id = '{$_SERVER['PHP_AUTH_USER']}'";
         $app->log->debug('$query:' . $query);
-        $result =  $app->db->exec($query);
-        if ($result === false || $result === 0) {
-            $egl = error_get_last();
-            $e = new Exception('SQLの実行でエラーが発生しました' . $egl['message']);
-            throw $e;
-        }
-
-        // コミット
-        $app->db->commit();
-        $isSaved = true;
+        $app->db->exec($query);
     } catch (Exception $e) {
         $app->log->debug(print_r($e, true));
-
-        // ロールバック
-        $app->db->rollBack();
         throw $e;
     }
 
-    if ($isSaved) {
-        $app->redirect('/user/edit', 303);
-    }
+    $app->redirect('/user/edit', 303);
 });
 
 $app->run();

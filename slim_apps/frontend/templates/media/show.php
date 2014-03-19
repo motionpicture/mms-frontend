@@ -1,31 +1,30 @@
 ﻿<?php require dirname(__FILE__) . '/../header.php' ?>
 
-        <div id="datetimepicker1" class="input-append">
-            <input type="text"/><span class="add-on"><i></i></span>
-        </div>
-
 <script src="/js/media/show.js"></script>
-
 
 <div class="row">
     <div class="main">
         <h1 class="page-header">メディア詳細</h1>
+        <p>
+            <a href="javascript:void(0)" class="update-media-by-code btn btn-primary ladda-button" data-style="zoom-in"><span class="ladda-label">更新</span></a>
+        </p>
 
         <div class="row">
+            <span class="media-code hide"><?php echo $medias[0]['code'] ?></span>
             <div class="col-xs-12 col-sm-12 col-lg-12">
                 <div class="table-responsive">
                     <table class="table table-bordered table-striped">
                         <tbody>
                             <tr>
-                                <td>作品コード</td>
+                                <th>作品コード</th>
                                 <td><?php echo $medias[0]['mcode'] ?></td>
                             </tr>
                             <tr>
-                                <td>作品名</td>
+                                <th>作品名</th>
                                 <td><input class="form-control" type="text" name="movie_name" value="<?php echo $medias[0]['movie_name'] ?>"></td>
                             </tr>
                             <tr>
-                                <td>カテゴリー</td>
+                                <th>カテゴリー</th>
                                 <td><?php echo $medias[0]['category_name'] ?></td>
                             </tr>
                         </tbody>
@@ -37,12 +36,13 @@
         <?php foreach ($medias as $media) { ?>
         <h3>ver.<?php echo $media['version'] ?></h3>
         <p>
-            <a href="javascript:void(0)" class="update-media btn btn-primary ladda-button" data-style="zoom-in"><span class="ladda-label">更新</span></a>
+            <a href="javascript:void(0)" class="update-media btn btn-primary ladda-button" data-style="zoom-in"><span class="ladda-label">このバージョンを更新</span></a>
             <a href="javascript:void(0)" class="delete-media btn btn-danger ladda-button" data-style="zoom-in"><span class="ladda-label">削除</span></a>
         </p>
 
         <div class="row">
             <span class="media-id hide"><?php echo $media['id'] ?></span>
+            <span class="media-version hide"><?php echo $media['version'] ?></span>
             <div class="col-xs-12 col-sm-6 col-lg-6">
                 <div class="table-responsive">
                     <table class="table table-bordered table-striped">
