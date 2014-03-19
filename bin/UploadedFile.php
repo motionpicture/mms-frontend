@@ -54,7 +54,7 @@ class UploadedFile extends BaseContext
     {
         parent::__construct();
 
-        $this->logFile = dirname(__FILE__) . '/../log/process.log';
+        $this->logFile = dirname(__FILE__) . '/../log/process_' . date('Ymd') . '.log';
 
         self::$filePath = $filePath;
 
