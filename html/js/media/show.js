@@ -1,12 +1,12 @@
 $(function() {
     $('input[name="start_at"], input[name="end_at"]').datetimepicker({
-        format: 'YYYY-MM-DD hh:mm:00',
+        format: 'YYYY-MM-DD HH:mm:00',
         pickDate: true,
         pickTime: true,
         useMinutes: true,
         useSeconds: false,
         useCurrent: true,
-        minuteStepping: 1,
+        minuteStepping: 10,
 //        minDate: 1/1/1900,
 //        maxDate: (today +100 years),
         showToday: true,
