@@ -43,7 +43,6 @@ table td {
             <table class="table table-striped">
                 <thead>
                     <tr>
-                        <th>名前</th>
                         <th>作品コード</th>
                         <th>作品名</th>
                         <th>カテゴリー</th>
@@ -62,11 +61,10 @@ table td {
                 <tbody>
                     <?php foreach ($medias as $media) { ?>
                     <tr>
-                        <td><a href="/media/<?php echo $media['code'] ?>"><?php echo $media['id'] ?></a></td>
                         <td><?php echo $media['mcode'] ?></td>
                         <td><?php echo $media['movie_name'] ?></td>
                         <td><?php echo $media['category_name'] ?></td>
-                        <td><?php echo $media['versions'] ?></div></td>
+                        <td><a href="/media/<?php echo $media['code'] ?>"><?php echo $media['version'] ?></a></td>
                         <td><input class="form-control" type="text" name="start_at" value="<?php echo $media['start_at'] ?>"></td>
                         <td><input class="form-control" type="text" name="end_at" value="<?php echo $media['end_at'] ?>"></td>
                         <td><?php echo floor($media['size'] / 1000000) ?></td>
