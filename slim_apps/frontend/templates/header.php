@@ -67,7 +67,7 @@
     <div class="alert-top" style="display: none;">
         <div class="col-xs-12 col-sm-4 col-lg-4"></div>
         <div class="col-xs-12 col-sm-4 col-lg-4">
-            <div class="alert alert-info alert-dismissable">
+            <div class="alert alert-dismissable">
                 <button type="button" class="close">&times;</button>
                 <span class="message"></span>
             </div>

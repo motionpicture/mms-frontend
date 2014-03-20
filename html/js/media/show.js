@@ -60,7 +60,7 @@ $(function(){
                     alertTop('メディアを更新しました');
                 } else {
                     console.log('update media by code fail');
-                    alertTop('メディアの更新に失敗しました');
+                    alertTop('メディアの更新に失敗しました', 'danger');
                 }
 
             },
@@ -107,7 +107,7 @@ $(function(){
                     alertTop('ver.' + mediaVersion + 'を更新しました');
                 } else {
                     console.log('update media fail');
-                    alertTop('ver.' + mediaVersion + 'の更新に失敗しました');
+                    alertTop('ver.' + mediaVersion + 'の更新に失敗しました', 'danger');
                 }
 
             },
@@ -157,7 +157,7 @@ $(function(){
                     alertTop('ver.' + mediaVersion + 'を削除しました');
                 } else {
                     console.log('delete media fail');
-                    alertTop('ver.' + mediaVersion + 'の削除に失敗しました');
+                    alertTop('ver.' + mediaVersion + 'の削除に失敗しました', 'danger');
                 }
 
             },

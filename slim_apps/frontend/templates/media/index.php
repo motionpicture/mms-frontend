@@ -1,5 +1,7 @@
 <?php require dirname(__FILE__) . '/../header.php' ?>
 
+<script src="/js/media/index.js"></script>
+
 <style type="text/css">
 table td {
     text-align: right;
@@ -46,6 +48,8 @@ table td {
                         <th>作品名</th>
                         <th>カテゴリー</th>
                         <th>バージョン</th>
+                        <th>公開開始</th>
+                        <th>公開終了</th>
                         <th>サイズ(MB)</th>
                         <th>再生時間</th>
                         <th>ユーザー</th>
@@ -63,14 +67,18 @@ table td {
                         <td><?php echo $media['movie_name'] ?></td>
                         <td><?php echo $media['category_name'] ?></td>
                         <td><?php echo $media['versions'] ?></div></td>
-                        <td><?php echo floor($media['size'] / 1000000) ?></div></td>
-                        <td><?php echo $media['playtime_string'] ?></div></td>
-                        <td><?php echo $media['user_id'] ?></div></td>
+                        <td><input class="form-control" type="text" name="start_at" value="<?php echo $media['start_at'] ?>"></td>
+                        <td><input class="form-control" type="text" name="end_at" value="<?php echo $media['end_at'] ?>"></td>
+                        <td><?php echo floor($media['size'] / 1000000) ?></td>
+                        <td><?php echo $media['playtime_string'] ?></td>
+                        <td><?php echo $media['user_id'] ?></td>
                         <td><?php echo ($media['job_id'] != '') ? $jobState::toString($media['job_state']) : 'ジョブ未登録' ?></td>
                         <td><?php echo $media['updated_at'] ?></td>
                         <td>
+                            <span class="media-id hide"><?php echo $media['id'] ?></span>
+                            <a href="javascript:void(0)" class="update-media btn btn-primary ladda-button" data-style="zoom-in"><span class="ladda-label">更新</span></a>
                             <?php if ($media['job_id']) { ?>
-                            <button type="button" class="btn btn-default" onclick="location.href='/media/<?php echo $media['id'] ?>/download'">動画ファイルをダウンロード</button>
+                            <button type="button" class="btn btn-default" onclick="location.href='/media/<?php echo $media['id'] ?>/download'">ダウンロード</button>
                             <?php } ?>
                         </td>
                     </tr>

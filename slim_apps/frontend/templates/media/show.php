@@ -49,12 +49,7 @@
                         <tbody>
                             <tr>
                                 <th>公開開始日時</th>
-                                <td>
-                                <div class="input-append">
-                                    <input class="form-control" type="text" name="start_at" value="<?php echo $media['start_at'] ?>">
-                                    <span class="add-on"><i class="icon-time"></i></span>
-                                </div>
-                                </td>
+                                <td><input class="form-control" type="text" name="start_at" value="<?php echo $media['start_at'] ?>"></td>
                             </tr>
                             <tr>
                                 <th>公開終了日時</th>
