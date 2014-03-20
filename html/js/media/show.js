@@ -15,6 +15,15 @@ $(function(){
         }
     });
 
+    $('input[name="media-url"]')
+//        .focus(function(){
+//            $(this).select();
+//            return false;
+//        })
+        .click(function(){
+            $(this).select();
+            return false;
+    });
 
     $('input[name="start_at"], input[name="end_at"]').datetimepicker({
         format: 'YYYY-MM-DD HH:mm:00',
