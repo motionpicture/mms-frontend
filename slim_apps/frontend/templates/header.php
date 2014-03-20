@@ -21,7 +21,10 @@
 <![endif]-->
 
 <!-- jQuery (necessary for Bootstrap's JavaScript plugins) -->
-<script src="https://code.jquery.com/jquery.js"></script>
+<script src="/js/jquery.js"></script>
+<!-- http://www.steamdev.com/zclip/ -->
+<script src="/js/jquery.zclip.min.js"></script>
+
 <script src="/js/moment.js"></script>
 <script src="/js/bootstrap.js"></script>
 

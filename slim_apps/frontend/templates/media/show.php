@@ -90,7 +90,15 @@
                             </tr>
                             <tr>
                                 <th>MPEG DASH URL</th>
-                                <td><?php echo ($media['urls']['smooth_streaming']) ? mb_strimwidth($media['urls']['smooth_streaming'] . '(format=mpd-time-csf)', 0, 60, '...') : '' ?></td>
+                                <td>
+                                    <?php if ($media['urls']['smooth_streaming']) { ?>
+                                    <span style="position: relative" class="copy-url">
+                                        <a href="javascript:void(0)" class="btn btn-default">COPY</a>
+                                    </span>
+                                    <?php } ?>
+                                    <span class="url hidden"><?php echo ($media['urls']['smooth_streaming']) ? $media['urls']['smooth_streaming'] . '(format=mpd-time-csf)' : '' ?></span>
+                                    <span><?php echo ($media['urls']['smooth_streaming']) ? mb_strimwidth($media['urls']['smooth_streaming'] . '(format=mpd-time-csf)', 0, 60, '...') : '' ?></span>
+                                </td>
                             </tr>
                         </tbody>
                     </table><!-- /.movies -->

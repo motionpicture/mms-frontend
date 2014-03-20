@@ -1,4 +1,21 @@
-$(function() {
+$(function(){
+    // URLコピー
+    $('.copy-url a').zclip({
+        path: '/js/ZeroClipboard.swf',
+        copy: function(){
+            var url = $('.url', $(this).parent().parent()).text();
+            console.log(url);
+            return url;
+        },
+        afterCopy: function(){
+            console.log('copied');
+            alertTop('URLをコピーしました');
+        },
+        beforeCopy: function(){
+        }
+    });
+
+
     $('input[name="start_at"], input[name="end_at"]').datetimepicker({
         format: 'YYYY-MM-DD HH:mm:00',
         pickDate: true,
