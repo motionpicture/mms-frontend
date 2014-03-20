@@ -120,7 +120,8 @@ class UploadedFile extends BaseContext
         $statement = $this->db->query($query);
         $maxVersion = $statement->fetchColumn();
         if (is_null($maxVersion)) {
-            $media['version'] = 0;
+            // 初めての場合バージョン1から
+            $media['version'] = 1;
         } else {
             $media['version'] = $maxVersion + 1;
         }
