@@ -40,8 +40,8 @@ class BaseContext
         if (!isset(self::$mediaServicesWrapper)) {
             // メディアサービス
             $settings = new \WindowsAzure\Common\Internal\MediaServicesSettings(
-                'testmvtkms',
-                'Vi3fX70rZKrtk/DM6TRoJ/XpxmkC29LNOzWimE06rx4=',
+                'pmmediams',
+                '70O6HfjPEYiIwW+4cHsyR9KcjX80icjwSDYyCbQtV+0=',
                 \WindowsAzure\Common\Internal\Resources::MEDIA_SERVICES_URL,
                 \WindowsAzure\Common\Internal\Resources::MEDIA_SERVICES_OAUTH_URL
             );
@@ -62,8 +62,8 @@ class BaseContext
             $connectionString =  sprintf(
                 'DefaultEndpointsProtocol=%s;AccountName=%s;AccountKey=%s',
                 'https',
-                'testmvtkmsst',
-                '+aoUiBttXAZovixNHuNxnkNaMbj2ZWDBzJvkG+FQ0EMmwbGtvEgryoqlQDkq+OxmQomRDQCKZitgeGfAk299Lg=='
+                'pmmedia',
+                '+IznSNPEIfhYPfO3Rl5et0hIv+wb68lrI0Kcl5WEFB9gtS1iAtKl+jKipvLcaCEvTBE1gDn5CivJu3eb8jHJeQ=='
             );
             self::$blobServicesWrapper = \WindowsAzure\Common\ServicesBuilder::getInstance()->createBlobService($connectionString);
         }
@@ -80,8 +80,8 @@ class BaseContext
     {
         if (!isset(self::$blobAuthenticationScheme)) {
             self::$blobAuthenticationScheme = new \WindowsAzure\Common\Internal\Authentication\SharedKeyAuthScheme(
-                'testmvtkmsst',
-                '+aoUiBttXAZovixNHuNxnkNaMbj2ZWDBzJvkG+FQ0EMmwbGtvEgryoqlQDkq+OxmQomRDQCKZitgeGfAk299Lg=='
+                'pmmedia',
+                '+IznSNPEIfhYPfO3Rl5et0hIv+wb68lrI0Kcl5WEFB9gtS1iAtKl+jKipvLcaCEvTBE1gDn5CivJu3eb8jHJeQ=='
             );
         }
 

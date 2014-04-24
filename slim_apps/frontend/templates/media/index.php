@@ -64,7 +64,7 @@ table td {
                         <td><?php echo $media['mcode'] ?></td>
                         <td><?php echo $media['movie_name'] ?></td>
                         <td><?php echo $media['category_name'] ?></td>
-                        <td><a href="/media/<?php echo $media['code'] ?>"><?php echo $media['version'] ?></a></td>
+                        <td><?php echo $media['version'] ?></td>
                         <td><input class="form-control" type="text" name="start_at" value="<?php echo $media['start_at'] ?>"></td>
                         <td><input class="form-control" type="text" name="end_at" value="<?php echo $media['end_at'] ?>"></td>
                         <td><?php echo floor($media['size'] / 1000000) ?></td>
@@ -74,6 +74,7 @@ table td {
                         <td><?php echo $media['updated_at'] ?></td>
                         <td>
                             <span class="media-id hide"><?php echo $media['id'] ?></span>
+                            <a href="/media/<?php echo $media['code'] ?>" class="btn btn-default"><span class="ladda-label">詳細</span></a>
                             <a href="javascript:void(0)" class="update-media btn btn-primary ladda-button" data-style="zoom-in"><span class="ladda-label">更新</span></a>
                             <?php if ($media['job_id']) { ?>
                             <button type="button" class="btn btn-default" onclick="location.href='/media/<?php echo $media['id'] ?>/download'">ダウンロード</button>

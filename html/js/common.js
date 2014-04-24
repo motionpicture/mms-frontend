@@ -3,36 +3,34 @@ if (!('console' in window)) {
     window.console.log = function(str){return str};
 }
 
-$(function() {
-    // ページトップのアラート
-    var timerAlertTop;
-    window.alertTop = function(message, type){
-        if (type === undefined) {
-          type = 'info';
-        }
+// ページトップのアラート
+var timerAlertTop;
+window.alertTop = function(message, type){
+    if (type === undefined) {
+      type = 'info';
+    }
 
-        clearInterval(timerAlertTop);
+    clearInterval(timerAlertTop);
+    $('.alert-top').hide()
+    $('.alert-top .alert').removeClass('alert-info');
+    $('.alert-top .alert').removeClass('alert-danger');
+
+    if (type == 'info') {
+      $('.alert-top .alert').addClass('alert-info');
+    } else if (type == 'danger') {
+      $('.alert-top .alert').addClass('alert-danger');
+    }
+
+    $('.alert-top .alert .message').text(message);
+    $('.alert-top').show();
+    timerAlertTop = setTimeout(function(){
         $('.alert-top').hide()
-        $('.alert-top .alert').removeClass('alert-info');
-        $('.alert-top .alert').removeClass('alert-danger');
+    }, 5000);
 
-        if (type == 'info') {
-          $('.alert-top .alert').addClass('alert-info');
-        } else if (type == 'danger') {
-          $('.alert-top .alert').addClass('alert-danger');
-        }
+    return;
+};
 
-        $('.alert-top .alert .message').text(message);
-        $('.alert-top').show();
-        timerAlertTop = setTimeout(function(){
-            $('.alert-top').hide()
-        }, 5000);
-
-        return;
-    };
-
-    $('.alert-top .close').on('click', function(e){
-        $('.alert-top').hide();
-        $('.alert-top .alert .messge').text('');
-    });
+$(document).on('click', '.alert-top .close', function(e){
+    $('.alert-top').hide();
+    $('.alert-top .alert .messge').text('');
 });

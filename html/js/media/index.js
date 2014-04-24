@@ -1,16 +1,35 @@
 $(function(){
+    // デフォルトの日時は、本日の00:00:00
+    var today = new Date(); 
+    var year = today.getFullYear();
+    var month = today.getMonth() + 1;
+    var day = today.getDate();
+    if (month) {
+        month = '0' + month;
+    }
+    if (day < 10) {
+        day = '0' + day;
+    }
+    var defaultDateTime = year + '-' + month + '-' + day + ' 00:00:00';
+
     $('input[name="start_at"], input[name="end_at"]').datetimepicker({
         format: 'YYYY-MM-DD HH:mm:00',
         pickDate: true,
         pickTime: true,
         useMinutes: true,
         useSeconds: false,
-        useCurrent: true,
+        useCurrent: false, // デフォルトを現在日時にしない
         minuteStepping: 10,
 //        minDate: 1/1/1900,
 //        maxDate: (today +100 years),
         showToday: true,
-        language:'ja', 
+        language:'ja',
+        defaultDate: ''
+    }).on('dp.show', function(e){
+        // 値なしの場合、デフォルト値を指定
+        if ($(this).val() == '') {
+            $(this).data('DateTimePicker').setValue(defaultDateTime);
+        }
     });
 
     $('.update-media').on('click', function(e){

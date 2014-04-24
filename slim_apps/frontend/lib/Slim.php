@@ -60,10 +60,10 @@ class Slim extends \Slim\Slim
         if (!isset(self::$mediaServicesWrapper)) {
             // メディアサービス
             $settings = new MediaServicesSettings(
-                'testmvtkms',
-                'Vi3fX70rZKrtk/DM6TRoJ/XpxmkC29LNOzWimE06rx4=',
-                'https://media.windows.net/API/',
-                'https://wamsprodglobal001acs.accesscontrol.windows.net/v2/OAuth2-13'
+                'pmmediams',
+                '70O6HfjPEYiIwW+4cHsyR9KcjX80icjwSDYyCbQtV+0=',
+                \WindowsAzure\Common\Internal\Resources::MEDIA_SERVICES_URL,
+                \WindowsAzure\Common\Internal\Resources::MEDIA_SERVICES_OAUTH_URL
             );
             self::$mediaServicesWrapper = \WindowsAzure\Common\ServicesBuilder::getInstance()->createMediaServicesService($settings);
         }

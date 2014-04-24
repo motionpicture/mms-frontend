@@ -36,6 +36,14 @@
 <script src="/js/ladda.min.js"></script>
 
 <script src="/js/common.js"></script>
+<?php if ($flash['info']) { ?>
+<script>
+// 画面上部メッセージの表示
+$(function() {
+    alertTop('<?php echo $flash['info'] ?>', 'info');
+});
+</script>
+<?php } ?>
 </head>
 
 <body>

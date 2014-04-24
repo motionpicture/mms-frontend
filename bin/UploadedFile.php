@@ -64,9 +64,9 @@ class UploadedFile extends BaseContext
     public function process()
     {
         try {
-            if (!file_exists(self::$filePath)) {
-                $e = new \Exception('file does not exists.');
-                throw $e;
+            if (!is_file(self::$filePath)) {
+              $e = new \Exception('file does not exists.');
+              throw $e;
             }
 
             $this->createMedia();
@@ -653,7 +653,13 @@ class UploadedFile extends BaseContext
         $headers['authorization'] = $sharedKey;
 
         // PUTするためのファイルポインタ作成
-        $tmpFile = dirname(__FILE__) . '/tmp/' . pathinfo($blob, PATHINFO_FILENAME);
+        // なければ作成
+        $tmpDir = dirname(__FILE__) . DIRECTORY_SEPARATOR . 'tmp';
+        if (!file_exists($tmpDir)) {
+          mkdir($tmpDir, 0777);
+          chmod($tmpDir, 0777);
+        }
+        $tmpFile = $tmpDir . DIRECTORY_SEPARATOR . pathinfo($blob, PATHINFO_FILENAME);
         $fp = fopen($tmpFile, 'w+');
         if ($fp === false) {
             $egl = error_get_last();

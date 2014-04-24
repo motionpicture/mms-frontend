@@ -9,6 +9,9 @@ if (empty($mode)) {
     exit('The application "mode" does not exist.');
 }
 
+session_cache_limiter(false);
+session_start();
+
 require_once dirname(__FILE__) . '/../slim_apps/frontend/lib/Slim.php';
 
 use WindowsAzure\MediaServices\Models\Job;
@@ -149,6 +152,7 @@ $app->post('/media/new', function () use ($app) {
     }
 
     if ($isSaved) {
+        $app->flash('info', '動画がアップロードされました。まもなく一覧に反映されます。');
         $app->redirect('/medias', 303);
     }
 });

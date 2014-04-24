@@ -118,10 +118,29 @@
                     window.addEventListener('load', setupVideo, false);
                     </script>
                     <video width="400" height="300" id="mpegDashPlayer" src="" autoplay controls>MPEG DASH</video>
-                    <h4>MPEG DASH</h4>
+                    <h4>MPEG DASH on HTML5</h4>
                     <span class="text-muted"></span>
                 </div>
+
                 <!--
+                <div class="row placeholders">
+                    <object data="data:application/x-silverlight-2," type="application/x-silverlight-2" width="400px" height="300px">
+                        <param name="source" value="/smoothstreamingplayer-2.2010.1001.1/SmoothStreamingPlayer.xap"/>
+                        <param name="onError" value="onSilverlightError" />
+                        <param name="background" value="white" />
+                        <param name="minRuntimeVersion" value="4.0.50401.0" />
+                        <param name="autoUpgrade" value="true" />
+                        <param name="InitParams" value="selectedcaptionstream=textstream_eng,mediaurl=<?php echo $url4smoothStreaming ?>(format=mpd-time-csf)" />
+                        <a href="http://go.microsoft.com/fwlink/?LinkID=149156&v=4.0.50401.0" style="text-decoration:none">
+                            <img src="http://go.microsoft.com/fwlink/?LinkId=161376" alt="Get Microsoft Silverlight" style="border-style:none"/>
+                        </a>
+                    </object>
+
+                    <h4>MPEG DASH on Silverlight</h4>
+                    <span class="text-muted"></span>
+                </div>
+                -->
+
                 <div class="row placeholders">
                     <object data="data:application/x-silverlight-2," type="application/x-silverlight-2" width="400px" height="300px">
                         <param name="source" value="/smoothstreamingplayer-2.2010.1001.1/SmoothStreamingPlayer.xap"/>
@@ -135,9 +154,10 @@
                         </a>
                     </object>
 
-                    <h4>Smooth Streaming(Silverlight)</h4>
+                    <h4>Smooth Streaming on Silverlight</h4>
                     <span class="text-muted">http://technet.microsoft.com/ja-jp/library/dd775198.aspx</span>
                 </div>
+
                 <div class="row placeholders">
                     <video width="400"
                            height="300"
@@ -145,10 +165,9 @@
                            autoplay="true"
                            controls="true">HLS</video>
 
-                    <h4>Http Live Streaming</h4>
+                    <h4>Http Live Streaming on HTML5</h4>
                     <span class="text-muted"></span>
                 </div>
-                -->
                 <?php } ?>
 
             </div>
