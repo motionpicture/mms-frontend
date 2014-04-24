@@ -112,12 +112,12 @@
                         var context = new Dash.di.DashContext();
                         var player = new MediaPlayer(context);
                         player.startup();
-                        player.attachView(document.querySelector('#mpegDashPlayer'));
+                        player.attachView(document.querySelector('#mpegDashPlayer_ver<?php echo $media['version'] ?>'));
                         player.attachSource(url);
                     }
                     window.addEventListener('load', setupVideo, false);
                     </script>
-                    <video width="400" height="300" id="mpegDashPlayer" src="" autoplay controls>MPEG DASH</video>
+                    <video width="400" height="300" id="mpegDashPlayer_ver<?php echo $media['version'] ?>" src="" autoplay controls>MPEG DASH</video>
                     <h4>MPEG DASH on HTML5</h4>
                     <span class="text-muted"></span>
                 </div>
