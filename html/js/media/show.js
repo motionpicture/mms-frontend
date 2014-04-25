@@ -66,9 +66,13 @@ $(function(){
         var thisBtn = this;
         var rootRow = $(thisBtn).parent().next('.row');
         var mediaCode = $('span.media-code', rootRow).text();
-        var movieNamw = $('input[name="movie_name"]', rootRow).val();
+        var movieName = $('input[name="movie_name"]', rootRow).val();
+        var startAt = $('input[name="start_at"]', rootRow).val();
+        var endAt = $('input[name="end_at"]', rootRow).val();
         var data = {
-            movie_name: movieNamw
+            movie_name: movieName,
+            start_at: startAt,
+            end_at: endAt
         };
         console.log('mediaCode: ' + mediaCode);
         console.log(data);

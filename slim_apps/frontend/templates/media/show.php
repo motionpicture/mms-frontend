@@ -27,6 +27,14 @@
                                 <th>カテゴリー</th>
                                 <td><?php echo $medias[0]['category_name'] ?></td>
                             </tr>
+                            <tr>
+                                <th>公開開始日時</th>
+                                <td><input class="form-control" type="text" name="start_at" value="<?php echo $medias[0]['start_at'] ?>"></td>
+                            </tr>
+                            <tr>
+                                <th>公開終了日時</th>
+                                <td><input class="form-control" type="text" name="end_at" value="<?php echo $medias[0]['end_at'] ?>"></td>
+                            </tr>
                         </tbody>
                     </table>
                 </div>
@@ -47,6 +55,7 @@
                 <div class="table-responsive">
                     <table class="table table-bordered table-striped">
                         <tbody>
+                            <!--
                             <tr>
                                 <th>公開開始日時</th>
                                 <td><input class="form-control" type="text" name="start_at" value="<?php echo $media['start_at'] ?>"></td>
@@ -55,6 +64,7 @@
                                 <th>公開終了日時</th>
                                 <td><input class="form-control" type="text" name="end_at" value="<?php echo $media['end_at'] ?>"></td>
                             </tr>
+                            -->
                             <tr>
                                 <th>サイズ</th>
                                 <td><?php echo $media['size'] ?>バイト</td>

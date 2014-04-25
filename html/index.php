@@ -391,8 +391,10 @@ $app->post('/media/:code/update_by_code', function ($code) use ($app) {
     try {
         $values = [];
         $values['movie_name'] = $app->db->quote($_POST['movie_name']);
+        $values['start_at'] = $app->db->quote($_POST['start_at']);
+        $values['end_at'] = $app->db->quote($_POST['end_at']);
 
-        $query = "UPDATE media SET movie_name = {$values['movie_name']}, updated_at = datetime('now', 'localtime') WHERE code = '{$code}';";
+        $query = "UPDATE media SET movie_name = {$values['movie_name']}, start_at = {$values['start_at']}, end_at = {$values['end_at']}, updated_at = datetime('now', 'localtime') WHERE code = '{$code}';";
         $app->log->debug('$query:' . $query);
         $count4update = $app->db->exec($query);
         $isSuccess = true;

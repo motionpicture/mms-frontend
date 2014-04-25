@@ -74,8 +74,10 @@ table td {
                         <td><?php echo $media['updated_at'] ?></td>
                         <td>
                             <span class="media-id hide"><?php echo $media['id'] ?></span>
+                            <span class="media-code hide"><?php echo $media['code'] ?></span>
+                            <span class="media-movie-name hide"><?php echo $media['movie_name'] ?></span>
                             <a href="/media/<?php echo $media['code'] ?>" class="btn btn-default"><span class="ladda-label">詳細</span></a>
-                            <a href="javascript:void(0)" class="update-media btn btn-primary ladda-button" data-style="zoom-in"><span class="ladda-label">更新</span></a>
+                            <a href="javascript:void(0)" class="update-media-by-code btn btn-primary ladda-button" data-style="zoom-in"><span class="ladda-label">更新</span></a>
                             <?php if ($media['job_id']) { ?>
                             <button type="button" class="btn btn-default" onclick="location.href='/media/<?php echo $media['id'] ?>/download'">ダウンロード</button>
                             <?php } ?>

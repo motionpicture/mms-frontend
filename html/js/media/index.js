@@ -32,25 +32,27 @@ $(function(){
         }
     });
 
-    $('.update-media').on('click', function(e){
+    $('.update-media-by-code').on('click', function(e){
         var ladda = Ladda.create(this);
         ladda.start();
 
         var thisBtn = this;
         var rootRow = $(thisBtn).parent().parent();
-        var mediaId = $('span.media-id', rootRow).text();
+        var mediaCode = $('span.media-code', rootRow).text();
+        var movieName = $('span.media-movie-name', rootRow).text();
         var startAt = $('input[name="start_at"]', rootRow).val();
         var endAt = $('input[name="end_at"]', rootRow).val();
         var data = {
+            movie_name: movieName,
             start_at: startAt,
             end_at: endAt
         };
-        console.log('mediaId: ' + mediaId);
+        console.log('mediaCode: ' + mediaCode);
         console.log(data);
 
         $.ajax({
             type: 'post',
-            url: '/media/' + mediaId + '/update',
+            url: '/media/' + mediaCode + '/update_by_code',
             data: data,
             dataType: 'json',
             complete: function(response) {
@@ -61,10 +63,10 @@ $(function(){
 
                 if (response.success) {
                     console.log('update media success');
-                    alertTop(mediaId + 'を更新しました');
+                    alertTop('メディア:' + mediaCode + 'を更新しました');
                 } else {
                     console.log('update media fail');
-                    alertTop(mediaId + 'の更新に失敗しました', 'danger');
+                    alertTop('メディア:' + mediaCode + 'の更新に失敗しました', 'danger');
                 }
 
             },
