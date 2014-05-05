@@ -105,6 +105,30 @@
                                     <span class="url hidden"><?php echo ($media['urls']['smooth_streaming']) ? $media['urls']['smooth_streaming'] . '(format=mpd-time-csf)' : '' ?></span>
                                 </td>
                             </tr>
+                            <tr>
+                                <th>Smooth Streaming URL</th>
+                                <td>
+                                    <input class="form-control" type="text" name="media-url" value="<?php echo ($media['urls']['smooth_streaming']) ? $media['urls']['smooth_streaming'] : '' ?>" readonly>
+                                    <?php if ($media['urls']['smooth_streaming']) { ?>
+                                    <span style="position: relative" class="copy-url">
+                                        <a href="javascript:void(0)" class="btn btn-default">COPY</a>
+                                    </span>
+                                    <?php } ?>
+                                    <span class="url hidden"><?php echo ($media['urls']['smooth_streaming']) ? $media['urls']['smooth_streaming'] : '' ?></span>
+                                </td>
+                            </tr>
+                            <tr>
+                                <th>HLS URL</th>
+                                <td>
+                                    <input class="form-control" type="text" name="media-url" value="<?php echo ($media['urls']['smooth_streaming']) ? $media['urls']['smooth_streaming'] . '(format=m3u8-aapl)' : '' ?>" readonly>
+                                    <?php if ($media['urls']['smooth_streaming']) { ?>
+                                    <span style="position: relative" class="copy-url">
+                                        <a href="javascript:void(0)" class="btn btn-default">COPY</a>
+                                    </span>
+                                    <?php } ?>
+                                    <span class="url hidden"><?php echo ($media['urls']['smooth_streaming']) ? $media['urls']['smooth_streaming'] . '(format=m3u8-aapl)' : '' ?></span>
+                                </td>
+                            </tr>
                         </tbody>
                     </table><!-- /.movies -->
                 </div>

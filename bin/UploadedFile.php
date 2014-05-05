@@ -76,7 +76,10 @@ class UploadedFile extends BaseContext
             if (!is_null($job)) {
                 $this->updateMedia($job->getId(), $job->getState());
 
-                unlink(self::$filePath);
+                // 開発環境以外では元ファイル削除
+                if (!$this->getIsDev()) {
+                    unlink(self::$filePath);
+                }
             }
 
         } catch (\Exception $e) {
@@ -254,7 +257,7 @@ class UploadedFile extends BaseContext
             // ファイルのアップロードを実行する
             $extension = pathinfo($filepath, PATHINFO_EXTENSION);
             $fileName = sprintf('%s.%s', self::$mediaId, $extension);
-            $this->upload(basename($asset->getUri()), $fileName, $filepath);
+            $this->upload2storage(basename($asset->getUri()), $fileName, $filepath);
 
             $isUploaded = true;
         } catch (\Exception $e) {
@@ -281,20 +284,11 @@ class UploadedFile extends BaseContext
             // ファイル メタデータの生成
             $mediaServicesWrapper->createFileInfos($asset);
 
-            // エンコードジョブを作成
-            // タスクを追加(スムーズストリーミングに変換)
-            $mediaProcessor = $mediaServicesWrapper->getLatestMediaProcessor('Windows Azure Media Encoder');
-            $taskBody = '<?xml version="1.0" encoding="utf-8"?><taskBody><inputAsset>JobInputAsset(0)</inputAsset><outputAsset assetCreationOptions="0" assetName="smooth_streaming">JobOutputAsset(0)</outputAsset></taskBody>';
-            $task = new Task(
-                $taskBody,
-                $mediaProcessor->getId(),
-                TaskOptions::NONE
-            );
-            $task->setConfiguration('H264 Smooth Streaming 1080p');
+            $tasks = $this->prepareTasks();
 
             $job = new Job();
             $job->setName('job_for_' . self::$mediaId);
-            $job = $mediaServicesWrapper->createJob($job, array($asset), array($task));
+            $job = $mediaServicesWrapper->createJob($job, array($asset), $tasks);
 
             $this->log('job has been created: ' . print_r($job, true));
         } catch (\Exception $e) {
@@ -308,256 +302,157 @@ class UploadedFile extends BaseContext
     }
 
     /**
-     * media serviceのjobを作成する(仮)
+     * ジョブにセットするタスクリストを用意する
      *
-     * TODO 大きいファイルサイズに対応できていないので一旦未使用
+     * ジョブを作成する上で最も肝になる部分
+     * 更新する場合
+     * タスクの順序や、JobInputAssetとJobOutputAssetのキーナンバーに、気をつけること
      *
+     * @see http://msdn.microsoft.com/ja-jp/library/dn629573.aspx
+     * @return multitype:\WindowsAzure\MediaServices\Models\Task
      */
-    private function createJob2()
+    private function prepareTasks()
     {
         $this->log("\n--------------------\n" . 'start function: ' . __FUNCTION__ . "\n--------------------\n");
-        $filepath = self::$filePath;
 
-        if (is_null($filepath)) {
-            return;
-        }
+        $tasks = array();
+        $mediaServicesWrapper = $this->getMediaServicesWrapper();
 
-        $asset = null;
-        $accessPolicy = null;
-        $locator = null;
-        $isUploaded = false;
-        $job = null;
+        // dynamic_packaging
+//         $mediaProcessor = $mediaServicesWrapper->getLatestMediaProcessor('Windows Azure Media Encoder');
+//         $taskBody = $this->getMediaServicesTaskBody(
+//             'JobInputAsset(0)',
+//             'JobOutputAsset(' . count($tasks) .')',
+//             Asset::OPTIONS_NONE,
+//             \Mms\Lib\Models\Task::NAME_DYNAMIC_PACKAGING
+//         );
+//         $task = new Task($taskBody, $mediaProcessor->getId(), TaskOptions::NONE);
+//         $task->setConfiguration('H264 Smooth Streaming 1080p');
+//         $tasks[] = $task;
 
-        try {
-            $mediaServicesWrapper = $this->getMediaServicesWrapper();
+        // adaptive bitrate mp4
+        $mediaProcessor = $mediaServicesWrapper->getLatestMediaProcessor('Windows Azure Media Encoder');
+        $taskBody = $this->getMediaServicesTaskBody(
+            'JobInputAsset(0)',
+            'JobOutputAsset(0)',
+            Asset::OPTIONS_NONE,
+            \Mms\Lib\Models\Task::NAME_ADAPTIVE_BITRATE_MP4
+        );
+        $this->log('$taskBody: ' . $taskBody);
+        $task = new Task($taskBody, $mediaProcessor->getId(), TaskOptions::NONE);
+        $task->setConfiguration('H264 Adaptive Bitrate MP4 Set 1080p');
+        $tasks[] = $task;
 
-            // 資産を作成する
-            $asset = new Asset(Asset::OPTIONS_NONE);
-            $asset->setName(self::$mediaId);
-            $asset = $mediaServicesWrapper->createAsset($asset);
-
-            $this->log($asset);
-
-            // AccessPolicy を設定する
-            $accessPolicy = new AccessPolicy('NewUploadPolicy');
-            $accessPolicy->setDurationInMinutes(30);
-            $accessPolicy->setPermissions(AccessPolicy::PERMISSIONS_WRITE);
-            $accessPolicy = $mediaServicesWrapper->createAccessPolicy($accessPolicy);
-
-            $this->log($accessPolicy);
-
-            // アップロードURLを取得する
-            $locator = new Locator($asset, $accessPolicy, Locator::TYPE_SAS);
-            $locator->setName('NewUploadLocator');
-            $locator->setStartTime(new \DateTime('now -5 minutes'));
-            $locator = $mediaServicesWrapper->createLocator($locator);
-
-            $this->log($locator);
-        } catch (\Exception $e) {
-            $this->log($e->getMessage());
-        }
-
-        try {
-            // ファイルのアップロードを実行する
-            $extension = pathinfo($filepath, PATHINFO_EXTENSION);
-            $fileName = sprintf('%s.%s', self::$mediaId, $extension);
-//             $mediaServicesWrapper->uploadAssetFile($locator, $fileName, file_get_contents($filepath));
-            $this->uploadAssetFile($locator, $fileName, $filepath);
-
-            $isUploaded = true;
-        } catch (\Exception $e) {
-            $this->log($e->getMessage());
-        }
-
-        try {
-            // アップロード URLの取り消し
-            // AccessPolicyの削除
-            if (!is_null($locator)) {
-                $mediaServicesWrapper->deleteLocator($locator);
-            }
-            if (!is_null($accessPolicy)) {
-                $mediaServicesWrapper->deleteAccessPolicy($accessPolicy);
-            }
-
-            // アップロード失敗の場合、アセットの削除
-            if (!$isUploaded && !is_null($asset)) {
-                $mediaServicesWrapper->deleteAsset($asset);
-            }
-        } catch (\Exception $e) {
-            $this->log($e->getMessage());
-        }
-
-        // アップロード失敗していれば終了
-        if (!$isUploaded) {
-            return;
-        }
-
-        try {
-            // ファイル メタデータの生成
-            $mediaServicesWrapper->createFileInfos($asset);
-
-            // エンコードジョブを作成
-            // タスクを追加(スムーズストリーミングに変換)
-            $mediaProcessor = $mediaServicesWrapper->getLatestMediaProcessor('Windows Azure Media Encoder');
-            $taskBody = '<?xml version="1.0" encoding="utf-8"?><taskBody><inputAsset>JobInputAsset(0)</inputAsset><outputAsset assetCreationOptions="0" assetName="smooth_streaming">JobOutputAsset(0)</outputAsset></taskBody>';
-            $task = new Task(
-                            $taskBody,
-                            $mediaProcessor->getId(),
-                            TaskOptions::NONE
-            );
-            $task->setConfiguration('H264 Smooth Streaming 1080p');
-
-            /*
-             // タスクを追加(アダプティブビットレートに変換)
-            $taskName = 'mp4';
-            $toAdaptiveBitrateTask = $job->AddNewTask(
-                            $taskName,
-                            'nb:mpid:UUID:70bdc2c3-ebf4-42a9-8542-5afc1e55d217',
-                            'H264 Broadband 1080p'
-            );
-            $toAdaptiveBitrateTask->AddInputMediaAsset($asset);
-            $toAdaptiveBitrateTask->AddNewOutputMediaAsset(
-                            $taskName,
-                            AssetOptions::$STORAGE_ENCRYPTED
-            );
-
-            // タスクを追加(MP4ビデオをスムーズストリーミングに変換)
-            $taskName = 'smooth_streaming';
-            $configurationFile  = dirname(__FILE__) . '/config/MediaPackager_MP4ToSmooth.xml';
-            $configuration = file_get_contents($configurationFile);
-            $toSmoothStreamingTask = $job->AddNewTask(
-                            $taskName,
-                            'nb:mpid:UUID:a2f9afe9-7146-4882-a5f7-da4a85e06a93',
-                            $configuration
-            );
-            $toSmoothStreamingTask->AddInputMediaAsset($toAdaptiveBitrateTask->outputMediaAssets[0]);
-            $toSmoothStreamingTask->AddNewOutputMediaAsset(
-                            $taskName,
-                            AssetOptions::$NONE
-            );
-
-            // タスクを追加(HLSに変換)
-            $taskName = 'http_live_streaming';
-            $configurationFile  = dirname(__FILE__) . '/config/MediaPackager_SmoothToHLS.xml';
-            $configuration = file_get_contents($configurationFile);
-            $toHLSTask = $job->AddNewTask(
-                            $taskName,
-                            'nb:mpid:UUID:a2f9afe9-7146-4882-a5f7-da4a85e06a93',
-                            $configuration
-            );
-            $toHLSTask->AddInputMediaAsset($toSmoothStreamingTask->outputMediaAssets[0]);
-            $toHLSTask->AddNewOutputMediaAsset(
-                            $taskName,
-                            AssetOptions::$NONE
-            );
-
-            // タスクを追加(PlayReadyで保護)
-            $taskName = 'smooth_streaming_playready';
-            $configurationFile  = dirname(__FILE__) . '/config/MediaEncryptor_PlayReadyProtection.xml';
-            $configuration = file_get_contents($configurationFile);
-            $playReadyTask = $job->AddNewTask(
-                            $taskName,
-                            'nb:mpid:UUID:38a620d8-b8dc-4e39-bb2e-7d589587232b',
-                            $configuration
-            );
-            $playReadyTask->AddInputMediaAsset($toSmoothStreamingTask->outputMediaAssets[0]);
-            $playReadyTask->AddNewOutputMediaAsset(
-                            $taskName,
-                            AssetOptions::$NONE
-            );
-
-            // タスクを追加(PlayReadyでHLSに変換)
-            $taskName = 'http_live_streaming_playready';
-            $configurationFile  = dirname(__FILE__) . '/config/MediaPackager_SmoothToHLS.xml';
-            $configuration = file_get_contents($configurationFile);
-            $toHLSByPlayReadyTask = $job->AddNewTask(
-                            $taskName,
-                            'nb:mpid:UUID:a2f9afe9-7146-4882-a5f7-da4a85e06a93',
-                            $configuration
-            );
-            $toHLSByPlayReadyTask->AddInputMediaAsset($playReadyTask->outputMediaAssets[0]);
-            $toHLSByPlayReadyTask->AddNewOutputMediaAsset(
-                            $taskName,
-                            AssetOptions::$NONE
-            );
-            */
-
-            $job = new Job();
-            $job->setName('job_for_' . self::$mediaId);
-            $job = $mediaServicesWrapper->createJob($job, array($asset), array($task));
-        } catch (\Exception $e) {
-            $this->log($e->getMessage());
-        }
+        $this->log('tasks has been prepared. tasks count: ' . count($tasks));
 
         $this->log("\n--------------------\n" . 'end function: ' . __FUNCTION__ . "\n--------------------\n");
 
-        return $job;
+        return $tasks;
     }
 
     /**
-     * Upload asset file to storage.
+     * ジョブにセットするタスクリストを用意する
      *
-     * @param WindowsAzure\MediaServices\Models\Locator $locator Write locator for
-     * file upload
+     * ジョブを作成する上で最も肝になる部分
+     * 更新する場合
+     * タスクの順序や、JobInputAssetとJobOutputAssetのキーナンバーに、気をつけること
      *
-     * @param string $name    Uploading filename
-     * @param string $path    Uploading content path
+     * 1. ダイナミックパッケージング
+     * 2. 入力ファイルを一連の複数ビットレート MP4 にエンコードする。
+     * 3. 複数ビットレート MP4をスムーズストリームにパッケージする。
+     * 4. スムーズ ストリームを暗号化する。
+     * 5. 暗号化されたスムーズ ストリームをHLSにパッケージしてPlayReadyで暗号化されたHLSを取得する。
      *
-     * @return none
+     * @see http://msdn.microsoft.com/ja-jp/library/dn629573.aspx
+     * @return multitype:\WindowsAzure\MediaServices\Models\Task
      */
-    private function uploadAssetFile($locator, $name, $path)
+    private function prepareTasks2()
     {
-        $url = $locator->getBaseUri() . '/' .  $name . $locator->getContentAccessComponent();
-        $headers = array(
-            'Content-Type: application/octet-stream',
-            'x-ms-version: 2011-08-18',
-            'x-ms-blob-type: BlockBlob',
-            'Expect: 100-continue'
-        );
+      $this->log("\n--------------------\n" . 'start function: ' . __FUNCTION__ . "\n--------------------\n");
 
-        $fp = fopen($path, 'rb');
-        if ($fp === false) {
-            $egl = error_get_last();
-            $e = new \Exception('cannot open file: ' . $egl['message']);
-            throw $e;
-        }
-        $ch = curl_init($url);
-        $options = [
-            CURLOPT_HTTPHEADER     => $headers,
-            CURLOPT_PUT            => true,
-            CURLOPT_INFILE         => $fp,
-            CURLOPT_INFILESIZE     => filesize($path),
-            CURLOPT_RETURNTRANSFER => 1,
-            CURLOPT_BINARYTRANSFER => 1,
-            CURLOPT_SSL_VERIFYPEER => false,
-            CURLOPT_SSLVERSION     => 3,
-            CURLOPT_CONNECTTIMEOUT => 300,
-            CURLOPT_TIMEOUT        => 0
-        ];
-        curl_setopt_array($ch, $options);
+      $tasks = array();
+      $mediaServicesWrapper = $this->getMediaServicesWrapper();
 
-        $result = curl_exec($ch);
+       // adaptive bitrate mp4
+      $mediaProcessor = $mediaServicesWrapper->getLatestMediaProcessor('Windows Azure Media Encoder');
+      $taskBody = $this->getMediaServicesTaskBody(
+          'JobInputAsset(0)',
+          'JobOutputAsset(0)',
+          Asset::OPTIONS_NONE,
+          \Mms\Lib\Models\Task::NAME_ADAPTIVE_BITRATE_MP4
+      );
+      $this->log('$taskBody: ' . $taskBody);
+      $task = new Task($taskBody, $mediaProcessor->getId(), TaskOptions::NONE);
+      $task->setConfiguration('H264 Adaptive Bitrate MP4 Set 720p');
+      $tasks[] = $task;
 
-        if (!curl_errno($ch)) {
-            $info = curl_getinfo($ch);
+      // smooth streaming
+      $mediaProcessor = $mediaServicesWrapper->getLatestMediaProcessor('Windows Azure Media Packager');
+      $taskBody = $this->getMediaServicesTaskBody(
+          'JobOutputAsset(0)',
+          'JobOutputAsset(1)',
+          Asset::OPTIONS_NONE,
+          \Mms\Lib\Models\Task::NAME_SMOOTH_STREAMING
+      );
+      $this->log('$taskBody: ' . $taskBody);
+      $task = new Task($taskBody, $mediaProcessor->getId(), TaskOptions::NONE);
+      $configurationFile  = dirname(__FILE__) . '/config/MediaPackager_MP4ToSmooth.xml';
+      $task->setConfiguration(file_get_contents($configurationFile));
+      $tasks[] = $task;
 
-            if ($info['http_code'] != '201') {
-                $this->log($info);
-                $object = simplexml_load_string($result);
-                $this->log($object);
+      // http_live_streaming
+      $mediaProcessor = $mediaServicesWrapper->getLatestMediaProcessor('Windows Azure Media Packager');
+      $taskBody = $this->getMediaServicesTaskBody(
+          'JobOutputAsset(1)',
+          'JobOutputAsset(2)',
+          Asset::OPTIONS_NONE,
+          \Mms\Lib\Models\Task::NAME_HLS
+      );
+//         $task = new Task($taskBody, $mediaProcessor->getId(), TaskOptions::PROTECTED_CONFIGURATION);
+      $task = new Task($taskBody, $mediaProcessor->getId(), TaskOptions::NONE);
+      $configurationFile  = dirname(__FILE__) . '/config/MediaPackager_SmoothToHLS.xml';
+      $task->setConfiguration(file_get_contents($configurationFile));
+      $tasks[] = $task;
 
-                $e = new \Exception('upload error: ' . $object->Code . ' ' . $object->Message);
-                curl_close($ch);
-                throw $e;
-            }
+      // PlayReady
+      $mediaProcessor = $mediaServicesWrapper->getLatestMediaProcessor('Windows Azure Media Encryptor');
+      $taskBody = $this->getMediaServicesTaskBody(
+          'JobOutputAsset(1)',
+          'JobOutputAsset(3)',
+          Asset::OPTIONS_COMMON_ENCRYPTION_PROTECTED,
+          \Mms\Lib\Models\Task::NAME_SMOOTH_STREAMING_PLAYREADY
+      );
+      $this->log('$taskBody: ' . $taskBody);
+      // テスト段階では、TaskOptions::PROTECTED_CONFIGURATIONだとkeyIdを設定しなさい、と怒られる
+//         $task = new Task($taskBody, $mediaProcessor->getId(), TaskOptions::PROTECTED_CONFIGURATION);
+      $task = new Task($taskBody, $mediaProcessor->getId(), TaskOptions::NONE);
+      $configurationFile  = dirname(__FILE__) . '/config/MediaEncryptor_PlayReadyProtection.xml';
+      $task->setConfiguration(file_get_contents($configurationFile));
+      $tasks[] = $task;
 
-            curl_close($ch);
-        } else {
-            $e = new \Exception(curl_error($ch));
-            curl_close($ch);
-            throw $e;
-        }
-        fclose($fp);
+      // http_live_streaming_playready
+      $mediaProcessor = $mediaServicesWrapper->getLatestMediaProcessor('Windows Azure Media Packager');
+      $taskBody = $this->getMediaServicesTaskBody(
+          'JobOutputAsset(3)',
+          'JobOutputAsset(4)',
+          Asset::OPTIONS_COMMON_ENCRYPTION_PROTECTED,
+          \Mms\Lib\Models\Task::NAME_HLS_PLAYREADY
+      );
+//         $task = new Task($taskBody, $mediaProcessor->getId(), TaskOptions::PROTECTED_CONFIGURATION);
+      $task = new Task($taskBody, $mediaProcessor->getId(), TaskOptions::NONE);
+      $configurationFile  = dirname(__FILE__) . '/config/MediaPackager_SmoothToHLS.xml';
+      $task->setConfiguration(file_get_contents($configurationFile));
+      $tasks[] = $task;
+
+      $this->log('tasks has been prepared. tasks count: ' . count($tasks));
+
+      $this->log("\n--------------------\n" . 'end function: ' . __FUNCTION__ . "\n--------------------\n");
+
+      return $tasks;
+    }
+
+    private function getMediaServicesTaskBody($inputAsset, $outputAsset, $outputAssetOptions, $outputAssetName) {
+        return '<?xml version="1.0" encoding="utf-8"?><taskBody><inputAsset>' . $inputAsset . '</inputAsset><outputAsset assetCreationOptions="' . $outputAssetOptions . '" assetName="' . $outputAssetName . '">' . $outputAsset . '</outputAsset></taskBody>';
     }
 
     /**
@@ -570,7 +465,7 @@ class UploadedFile extends BaseContext
      *
      * @return none
      */
-    private function upload($containerName, $blobName, $path)
+    private function upload2storage($containerName, $blobName, $path)
     {
         $this->log("\n--------------------\n" . 'start function: ' . __FUNCTION__ . "\n--------------------\n");
         $this->log('$containerName: ' . $containerName);
@@ -590,7 +485,6 @@ class UploadedFile extends BaseContext
             array_push($blockIds, $block);
 
             $data = fread($content, CHUNK_SIZE);
-//             $blobRestProxy->createBlobBlock($containerName, $blobName, base64_encode($blockId), $data);
             $this->createBlobBlock($containerName, $blobName, base64_encode($blockId), $data);
 
             $counter++;

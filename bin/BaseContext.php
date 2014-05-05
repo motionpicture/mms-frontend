@@ -8,11 +8,13 @@ date_default_timezone_set('Asia/Tokyo');
 
 require_once dirname(__FILE__) . '/../vendor/autoload.php';
 require_once 'PDO.php';
+require_once dirname(__FILE__) . '/../lib/models/Task.php';
 
 class BaseContext
 {
     public $db;
     public $logFile;
+    public $azureConfig;
     private static $mediaServicesWrapper = null;
     private static $blobServicesWrapper = null;
     private static $blobAuthenticationScheme = null;
@@ -28,6 +30,14 @@ class BaseContext
         if (isset($options['env']) && $options['env'] == 'dev') {
             self::$isDev = true;
         }
+
+        // azure設定値
+        $azureIniArray = parse_ini_file(dirname(__FILE__) . '/../config/azure.ini', true);
+        if ($this->getIsDev()) {
+            $this->azureConfig = $azureIniArray['development'];
+        } else {
+            $this->azureConfig = $azureIniArray['production'];
+        }
     }
 
     /**
@@ -40,8 +50,8 @@ class BaseContext
         if (!isset(self::$mediaServicesWrapper)) {
             // メディアサービス
             $settings = new \WindowsAzure\Common\Internal\MediaServicesSettings(
-                'pmmediams',
-                '70O6HfjPEYiIwW+4cHsyR9KcjX80icjwSDYyCbQtV+0=',
+                $this->azureConfig['media_service_account_name'],
+                $this->azureConfig['media_service_account_key'],
                 \WindowsAzure\Common\Internal\Resources::MEDIA_SERVICES_URL,
                 \WindowsAzure\Common\Internal\Resources::MEDIA_SERVICES_OAUTH_URL
             );
@@ -62,8 +72,8 @@ class BaseContext
             $connectionString =  sprintf(
                 'DefaultEndpointsProtocol=%s;AccountName=%s;AccountKey=%s',
                 'https',
-                'pmmedia',
-                '+IznSNPEIfhYPfO3Rl5et0hIv+wb68lrI0Kcl5WEFB9gtS1iAtKl+jKipvLcaCEvTBE1gDn5CivJu3eb8jHJeQ=='
+                $this->azureConfig['storage_account_name'],
+                $this->azureConfig['storage_account_key']
             );
             self::$blobServicesWrapper = \WindowsAzure\Common\ServicesBuilder::getInstance()->createBlobService($connectionString);
         }
@@ -80,8 +90,12 @@ class BaseContext
     {
         if (!isset(self::$blobAuthenticationScheme)) {
             self::$blobAuthenticationScheme = new \WindowsAzure\Common\Internal\Authentication\SharedKeyAuthScheme(
-                'pmmedia',
-                '+IznSNPEIfhYPfO3Rl5et0hIv+wb68lrI0Kcl5WEFB9gtS1iAtKl+jKipvLcaCEvTBE1gDn5CivJu3eb8jHJeQ=='
+                $this->azureConfig['storage_account_name'],
+                $this->azureConfig['storage_account_key']
+//                 'testmvtkmsst',
+//                 '+aoUiBttXAZovixNHuNxnkNaMbj2ZWDBzJvkG+FQ0EMmwbGtvEgryoqlQDkq+OxmQomRDQCKZitgeGfAk299Lg=='
+//                 'pmmedia',
+//                 '+IznSNPEIfhYPfO3Rl5et0hIv+wb68lrI0Kcl5WEFB9gtS1iAtKl+jKipvLcaCEvTBE1gDn5CivJu3eb8jHJeQ=='
             );
         }
 

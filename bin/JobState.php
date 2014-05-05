@@ -89,6 +89,11 @@ class JobState extends BaseContext
             try {
                 // ジョブが完了の場合、URL発行プロセス
                 if ($job->getState() == Job::STATE_FINISHED) {
+                    // 念のため、すでにURL発行されていれば全て削除
+                    $query = "DELETE FROM task WHERE media_id = '{$mediaId}';";
+                    $this->log('$query: ' . $query);
+                    $this->db->exec($query);
+
                     // ジョブに関する情報更新
                     $query = sprintf("UPDATE media SET job_state = '%s', job_start_at = '%s', job_end_at = '%s', updated_at = %s WHERE id = '%s';",
                                     $job->getState(),
@@ -102,15 +107,19 @@ class JobState extends BaseContext
                     // ジョブのアウトプットアセットを取得
                     $assets = $mediaServicesWrapper->getJobOutputMediaAssets($job->getId());
                     foreach ($assets as $asset) {
-                        if ($asset->getOptions() == Asset::OPTIONS_NONE) {
+                        // 必要なタスクのみURLを発行する
+                        $assetNames4deliver = $this->getAssetNames4deliver();
+
+                        if (in_array($asset->getName(), $assetNames4deliver)) {
                             $url = $this->createUrl($asset->getId(), $asset->getName(), $mediaId);
 
+                            // タスク追加
                             $query = sprintf("INSERT INTO task (media_id, name, url, created_at, updated_at) VALUES ('%s', '%s', '%s', %s, %s);",
-                                            $mediaId,
-                                            $asset->getName(),
-                                            $url,
-                                            'datetime(\'now\', \'localtime\')',
-                                            'datetime(\'now\', \'localtime\')');
+                                $mediaId,
+                                $asset->getName(),
+                                $url,
+                                'datetime(\'now\', \'localtime\')',
+                                'datetime(\'now\', \'localtime\')');
                             $this->log('$query: ' . $query);
                             $this->db->exec($query);
                         }
@@ -136,6 +145,22 @@ class JobState extends BaseContext
         $this->log("\n--------------------\n" . 'end function: ' . __FUNCTION__ . "\n--------------------\n");
 
         return $url;
+    }
+
+    /**
+     * URL発行のターゲットとなるアセット名リストを取得する
+     *
+     * @return multitype:string
+     */
+    private function getAssetNames4deliver()
+    {
+        return array(
+            \Mms\Lib\Models\Task::NAME_ADAPTIVE_BITRATE_MP4,
+            \Mms\Lib\Models\Task::NAME_SMOOTH_STREAMING,
+            \Mms\Lib\Models\Task::NAME_SMOOTH_STREAMING_PLAYREADY,
+            \Mms\Lib\Models\Task::NAME_HLS,
+            \Mms\Lib\Models\Task::NAME_HLS_PLAYREADY
+        );
     }
 
     /**

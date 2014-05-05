@@ -251,10 +251,9 @@ $app->get('/media/:code', function ($code) use ($app) {
             $medias[$key]['urls'] = array();
 
             // ストリーミングURLの取得
-            $query = "SELECT url FROM task WHERE media_id = '{$media['id']}' AND name = 'smooth_streaming' ORDER BY updated_at DESC";
+            $query = "SELECT url FROM task WHERE media_id = '{$media['id']}' AND name = '" . \Mms\Lib\Models\Task::NAME_ADAPTIVE_BITRATE_MP4 . "' ORDER BY updated_at DESC";
             $statement = $app->db->query($query);
             $url = $statement->fetchColumn();
-
             $medias[$key]['urls']['smooth_streaming'] = $url;
         }
     } catch (Exception $e) {
