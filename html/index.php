@@ -12,17 +12,15 @@ if (empty($mode)) {
 session_cache_limiter(false);
 session_start();
 
-require_once dirname(__FILE__) . '/../slim_apps/frontend/lib/Slim.php';
+require_once dirname(__FILE__) . '/../slim_apps/Frontend/Lib/Slim.php';
 
-use WindowsAzure\MediaServices\Models\Job;
-
-$app = new \Mms\Frontend\Slim([
+$app = new \Mms\Frontend\Lib\Slim([
     'debug'       => true,
     'log.enable' => true,
 //     'log.path'    => '/../log',
 //     'log.level'    => 8,
     'log.writer' => new \Slim\LogWriter(fopen(dirname(__FILE__) . '/../log/mms_slim.log', 'a+')),
-    'templates.path' => dirname(__FILE__) . '/../slim_apps/frontend/templates',
+    'templates.path' => dirname(__FILE__) . '/../slim_apps/Frontend/Templates',
     'mode'           => $mode
 ]);
 
@@ -165,7 +163,7 @@ $app->get('/medias', function () use ($app) {
 
     $searchConditions = [
         'word'      => '',
-        'job_state' => JobState::getAll(),
+        'job_state' => \Mms\Lib\JobState::getAll(),
         'category'  => []
     ];
 
@@ -226,7 +224,7 @@ $app->get('/medias', function () use ($app) {
         'media/index.php',
         [
             'medias'           => $medias,
-            'jobState'         => new JobState,
+            'jobState'         => new \Mms\Lib\JobState,
             'searchConditions' => $searchConditions,
             'categories'      => $categories
         ]
@@ -267,7 +265,7 @@ $app->get('/media/:code', function ($code) use ($app) {
         'media/show.php',
         [
             'medias'   => $medias,
-            'jobState' => new JobState,
+            'jobState' => new \Mms\Lib\JobState,
         ]
     );
 })->name('media_by_code');
@@ -487,57 +485,6 @@ $app->post('/media/:id/delete', function ($id) use ($app) {
 })->name('media_delete');
 
 /**
- * メディアのストリーミングURL
- */
-$app->get('/media/stream/:mcode/:category', function ($mcode, $category) use ($app) {
-    $app->log->debug('args: ' . print_r(func_get_args(), true));
-
-    $maxVersion = '';
-
-    try {
-        $query = "SELECT MAX(version) AS max_version FROM media WHERE mcode = '{$mcode}' AND category_id = '{$category}'";
-        $statement = $app->db->query($query);
-        $maxVersion = $statement->fetchColumn();
-    } catch (Exception $e) {
-        $app->log->debug(print_r($e, true));
-        throw $e;
-    }
-
-    if ($maxVersion != '') {
-        $to = sprintf('/media/stream/%s/%s/%s', $mcode, $category, $maxVersion);
-        $app->redirect($to, 303);
-    }
-
-    throw new Exception('予期せぬエラー');
-})->name('media_stream');
-
-/**
- * メディアのストリーミングURL(バージョン指定)
- */
-$app->get('/media/stream/:mcode/:category/:version', function ($mcode, $category, $version) use ($app) {
-    $url = '';
-
-    try {
-        $id = sprintf('%s_%s_%s', $mcode, $category, $version);
-
-        // ストリーミングURLの取得
-        $query = "SELECT url FROM task WHERE media_id = '{$id}' AND name = 'smooth_streaming' ORDER BY updated_at DESC";
-        $statement = $app->db->query($query);
-        $url = $statement->fetchColumn();
-    } catch (Exception $e) {
-        $app->log->debug(print_r($e, true));
-        throw $e;
-    }
-
-    if ($url != '') {
-        $app->redirect($url, 303);
-    }
-
-    echo 'please wait...';
-    exit;
-})->name('media_stream_by_version');
-
-/**
  * アカウント編集
  */
 $app->get('/user/edit', function () use ($app) {
@@ -607,38 +554,4 @@ $app->post('/user/edit', function () use ($app) {
 
 $app->run();
 
-class JobState
-{
-    public static function getAll()
-    {
-        return [
-            Job::STATE_QUEUED,
-            Job::STATE_SCHEDULED,
-            Job::STATE_PROCESSING,
-            Job::STATE_FINISHED,
-            Job::STATE_ERROR,
-            Job::STATE_CANCELED,
-            Job::STATE_CANCELING
-        ];
-    }
-
-    public static function toString($state)
-    {
-        if ($state == Job::STATE_QUEUED) {
-            return '待機中';
-        } else if ($state == Job::STATE_SCHEDULED) {
-            return 'スケジュール済み';
-        } else if ($state == Job::STATE_PROCESSING) {
-            return '進行中';
-        } else if ($state == Job::STATE_FINISHED) {
-            return '完了';
-        } else if ($state == Job::STATE_ERROR) {
-            return 'エラー';
-        } else if ($state == Job::STATE_CANCELED) {
-            return 'キャンセル済み';
-        } else if ($state == Job::STATE_CANCELING) {
-            return 'キャンセル中';
-        }
-    }
-}
 ?>

@@ -7,8 +7,11 @@ ini_set('display_errors', 1);
 date_default_timezone_set('Asia/Tokyo');
 
 require_once dirname(__FILE__) . '/../vendor/autoload.php';
-require_once 'PDO.php';
-require_once dirname(__FILE__) . '/../lib/models/Task.php';
+
+// 動画管理システムのライブラリ
+spl_autoload_register(function ($class) {
+    require_once dirname(__FILE__) . '/../lib/' . $class . '.php';
+});
 
 class BaseContext
 {
@@ -22,12 +25,21 @@ class BaseContext
 
     function __construct()
     {
-        $this->db = PDO::getInstance();
+        // 環境取得
+        $modeFile = dirname(__FILE__) . '/../mode.php';
+        if (false === is_file($modeFile)) {
+            exit('The application "mode file" does not exist.');
+        }
+        require_once($modeFile);
+        if (empty($mode)) {
+            exit('The application "mode" does not exist.');
+        }
 
-        $this->logFile = dirname(__FILE__) . '/../log/mms_bin.log';
+        $this->db = \Mms\Lib\PDO::getInstance($mode);
 
-        $options = getopt('', array('env:'));
-        if (isset($options['env']) && $options['env'] == 'dev') {
+        $this->logFile = dirname(__FILE__) . '/../log/bin/mms_bin_' . date('Ymd') . '.log';
+
+        if ($mode == 'development') {
             self::$isDev = true;
         }
 
@@ -92,10 +104,6 @@ class BaseContext
             self::$blobAuthenticationScheme = new \WindowsAzure\Common\Internal\Authentication\SharedKeyAuthScheme(
                 $this->azureConfig['storage_account_name'],
                 $this->azureConfig['storage_account_key']
-//                 'testmvtkmsst',
-//                 '+aoUiBttXAZovixNHuNxnkNaMbj2ZWDBzJvkG+FQ0EMmwbGtvEgryoqlQDkq+OxmQomRDQCKZitgeGfAk299Lg=='
-//                 'pmmedia',
-//                 '+IznSNPEIfhYPfO3Rl5et0hIv+wb68lrI0Kcl5WEFB9gtS1iAtKl+jKipvLcaCEvTBE1gDn5CivJu3eb8jHJeQ=='
             );
         }
 
@@ -105,6 +113,13 @@ class BaseContext
     function log($content)
     {
         $log = print_r($content, true) . "\n";
+
+        // ディレクトリがなければ再帰的に作成
+        if (!file_exists(dirname($this->logFile))) {
+            mkdir(dirname($this->logFile), 0777, true);
+            chmod(dirname($this->logFile), 0777);
+        }
+
         file_put_contents($this->logFile, $log, FILE_APPEND);
 
         if ($this->getIsDev()) {

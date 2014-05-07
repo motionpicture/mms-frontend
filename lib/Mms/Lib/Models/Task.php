@@ -1,9 +1,6 @@
 <?php
 
 namespace Mms\Lib\Models;
-use WindowsAzure\Common\Internal\Validate;
-use WindowsAzure\MediaServices\Models\TaskHistoricalEvent;
-use WindowsAzure\MediaServices\Models\ErrorDetail;
 
 /**
  * 動画管理システムタスクモデル
@@ -47,4 +44,10 @@ class Task
      * @var string
      */
     const NAME_HLS_PLAYREADY = 'http_live_streaming_playready';
+
+    private $_mediaId;
+    private $_name;
+    private $_url;
+    private $_createdAt;
+    private $_updatedAt;
 }

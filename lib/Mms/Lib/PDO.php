@@ -1,5 +1,6 @@
 <?php
-namespace Mms\Frontend;
+
+namespace Mms\Lib;
 
 class PDO
 {

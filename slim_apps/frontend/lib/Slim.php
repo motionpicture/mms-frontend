@@ -1,12 +1,14 @@
 <?php
-namespace Mms\Frontend;
+namespace Mms\Frontend\Lib;
 
 // デフォルトタイムゾーン
 date_default_timezone_set('Asia/Tokyo');
 
 require_once dirname(__FILE__) . '/../../../vendor/autoload.php';
-require_once dirname(__FILE__) . '/PDO.php';
-require_once dirname(__FILE__) . '/../../../lib/models/Task.php';
+
+spl_autoload_register(function ($class) {
+    require_once dirname(__FILE__) . '/../../../lib/' . $class . '.php';
+});
 
 use WindowsAzure\Common\Internal\MediaServicesSettings;
 
@@ -24,7 +26,7 @@ class Slim extends \Slim\Slim
     {
         parent::__construct($userSettings);
 
-        $this->db = PDO::getInstance($userSettings['mode']);
+        $this->db = \Mms\Lib\PDO::getInstance($userSettings['mode']);
 
         // azure設定値
         $azureIniArray = parse_ini_file(dirname(__FILE__) . '/../../../config/azure.ini', true);

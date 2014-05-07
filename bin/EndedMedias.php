@@ -12,7 +12,7 @@ class EndedMedias extends BaseContext
     {
         parent::__construct();
 
-        $this->logFile = dirname(__FILE__) . '/../log/delete_ended_medias_' . date('Ymd') . '.log';
+        $this->logFile = dirname(__FILE__) . '/../log/bin/delete_ended_medias/delete_ended_medias_' . date('Ymd') . '.log';
     }
 
     public function delete()

@@ -14,7 +14,7 @@ class JobState extends BaseContext
     {
         parent::__construct();
 
-        $this->logFile = dirname(__FILE__) . '/../log/check_job_' . date('Ymd') . '.log';
+        $this->logFile = dirname(__FILE__) . '/../log/bin/check_job/check_job_' . date('Ymd') . '.log';
     }
 
     /**

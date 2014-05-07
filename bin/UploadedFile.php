@@ -54,7 +54,7 @@ class UploadedFile extends BaseContext
     {
         parent::__construct();
 
-        $this->logFile = dirname(__FILE__) . '/../log/process_' . date('Ymd') . '.log';
+        $this->logFile = dirname(__FILE__) . '/../log/bin/process/process_' . date('Ymd') . '.log';
 
         self::$filePath = $filePath;
 
@@ -91,7 +91,7 @@ class UploadedFile extends BaseContext
      * ファイルパスからメディアプロパティの配列を返す
      *
      * @param string $path ファイルパス
-     * @return array
+     * @return \Mms\Lib\Models\Media
      */
     private function path2media($path)
     {
@@ -108,44 +108,38 @@ class UploadedFile extends BaseContext
         $size = (filesize($path)) ? filesize($path) : '';
         $extension = pathinfo($path, PATHINFO_EXTENSION);
 
-        $media = [
-            'mcode'       => $mcode,
-            'category_id' => $categoryId,
-            'user_id'     => $userId,
-            'size'        => $size,
-            'extension'   => $extension,
-        ];
-
         // バージョンを確定
-        $query = sprintf('SELECT MAX(version) AS max_version FROM media WHERE mcode = \'%s\' AND category_id = \'%s\';',
-                        $media['mcode'],
-                        $media['category_id']);
+        $query = "SELECT MAX(version) AS max_version FROM media WHERE mcode = '{$mcode}' AND category_id = '{$categoryId}'";
         $statement = $this->db->query($query);
         $maxVersion = $statement->fetchColumn();
         if (is_null($maxVersion)) {
             // 初めての場合バージョン1から
-            $media['version'] = 1;
+            $version = 1;
         } else {
-            $media['version'] = $maxVersion + 1;
+            $version = $maxVersion + 1;
         }
 
-        // 作品コード、カテゴリーからコードを生成
-        $media['code'] = implode('_', array($media['mcode'], $media['category_id']));
-        // コード、バージョンからIDを生成
-        $media['id'] = implode('_', array($media['code'], $media['version']));
+        $options = array(
+            'mcode'      => $mcode,
+            'categoryId' => $categoryId,
+            'userId'     => $userId,
+            'size'       => $size,
+            'extension'  => $extension,
+            'version'    => $version
+        );
 
         // 再生時間を取得
         $getID3 = new \getID3;
         $fileInfo = $getID3->analyze(self::$filePath);
         if (isset($fileInfo['playtime_string'])) {
-            $media['playtime_string'] = $fileInfo['playtime_string'];
+            $options['playtimeString'] = $fileInfo['playtime_string'];
         }
         if (isset($fileInfo['playtime_seconds'])) {
-            $media['playtime_seconds'] = $fileInfo['playtime_seconds'];
+            $options['playtimeSeconds'] = $fileInfo['playtime_seconds'];
         }
 
         // 作品名を取得
-        $media['movie_name'] = '';
+        $options['movieName'] = '';
         try {
             $option = [
                 'soap' => [
@@ -166,15 +160,18 @@ class UploadedFile extends BaseContext
             $factory = new \MvtkService\Factory($option);
             $service = $factory->createInstance('Film');
             $params = [
-                'skhnCd' => $media['mcode'],
+                'skhnCd' => $mcode,
                 'dvcTyp' => \MvtkService\Common::DVC_TYP_PC,
             ];
             $film = $service->GetFilmDetail($params);
             $film = $film->toArray();
-            $media['movie_name'] = $film['SKHN_NM'];
+            $options['movieName'] = $film['SKHN_NM'];
         } catch (\Exception $e) {
             $this->log('fail in getting movie name: ' . $e->getMessage());
         }
+
+        // メディアオブジェクト生成
+        $media = \Mms\Lib\Models\Media::createFromOptions($options);
 
         $this->log('$media: ' . print_r($media, true));
         $this->log("\n--------------------\n" . 'end function: ' . __FUNCTION__ . "\n--------------------\n");
@@ -194,22 +191,22 @@ class UploadedFile extends BaseContext
 
             $query = sprintf(
                 "INSERT INTO media (id, code, mcode, size, extension, version, user_id, movie_name, playtime_string, playtime_seconds, category_id, created_at, updated_at) VALUES ('%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', datetime('now', 'localtime'), datetime('now', 'localtime'));",
-                $media['id'],
-                $media['code'],
-                $media['mcode'],
-                $media['size'],
-                $media['extension'],
-                $media['version'],
-                $media['user_id'],
-                $media['movie_name'],
-                $media['playtime_string'],
-                $media['playtime_seconds'],
-                $media['category_id']
+                $media->getId(),
+                $media->getCode(),
+                $media->getMcode(),
+                $media->getSize(),
+                $media->getExtension(),
+                $media->getVersion(),
+                $media->getUserId(),
+                $media->getMovieName(),
+                $media->getPlaytimeString(),
+                $media->getPlaytimeSeconds(),
+                $media->getCategoryId()
             );
             $this->log('$query:' . $query);
             $this->db->exec($query);
 
-            self::$mediaId = $media['id'];
+            self::$mediaId = $media->getId();
 
             $this->log('media has been created. mediaId: ' . self::$mediaId);
         } catch (\Exception $e) {
