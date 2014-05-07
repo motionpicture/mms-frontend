@@ -7,7 +7,7 @@ date_default_timezone_set('Asia/Tokyo');
 require_once dirname(__FILE__) . '/../../../vendor/autoload.php';
 
 spl_autoload_register(function ($class) {
-    require_once dirname(__FILE__) . '/../../../lib/' . $class . '.php';
+    require_once dirname(__FILE__) . '/../../../lib/' . strtr($class, '\\', DIRECTORY_SEPARATOR) . '.php';
 });
 
 use WindowsAzure\Common\Internal\MediaServicesSettings;

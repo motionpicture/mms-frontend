@@ -10,7 +10,7 @@ require_once dirname(__FILE__) . '/../vendor/autoload.php';
 
 // 動画管理システムのライブラリ
 spl_autoload_register(function ($class) {
-    require_once dirname(__FILE__) . '/../lib/' . $class . '.php';
+    require_once dirname(__FILE__) . '/../lib/' . strtr($class, '\\', DIRECTORY_SEPARATOR) . '.php';
 });
 
 class BaseContext
