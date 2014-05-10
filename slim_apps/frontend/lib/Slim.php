@@ -24,6 +24,28 @@ class Slim extends \Slim\Slim
      */
     public function __construct(array $userSettings = array())
     {
+        // 環境取得
+        $modeFile = dirname(__FILE__) . '/../../../mode.php';
+        if (false === is_file($modeFile)) {
+            exit('The application "mode file" does not exist.');
+        }
+        require_once($modeFile);
+        if (empty($mode)) {
+            exit('The application "mode" does not exist.');
+        }
+
+        $userSettings['mode'] = $mode;
+
+        // デバッグモード
+        if ($mode == 'development') {
+            $userSettings['debug'] = true;
+        } else {
+            $userSettings['debug'] = false;
+        }
+
+        // ログファイル指定
+        $userSettings['log.writer'] = new \Slim\LogWriter(fopen(dirname(__FILE__) . '/../../../log/mms_slim_' . $mode . '_' . date('Ymd') . '.log', 'a+'));
+
         parent::__construct($userSettings);
 
         $this->db = \Mms\Lib\PDO::getInstance($userSettings['mode']);

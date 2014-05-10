@@ -8,13 +8,16 @@ use WindowsAzure\MediaServices\Models\AccessPolicy;
 use WindowsAzure\MediaServices\Models\Asset;
 use WindowsAzure\MediaServices\Models\Locator;
 
+set_time_limit(0);
+ini_set('memory_limit', '1024M');
+
 class JobState extends BaseContext
 {
     function __construct()
     {
         parent::__construct();
 
-        $this->logFile = dirname(__FILE__) . '/../log/bin/check_job/check_job_' . date('Ymd') . '.log';
+        $this->logFile = dirname(__FILE__) . '/../log/bin/check_job/check_job_' . $this->getMode() . '_' . date('Ymd') . '.log';
     }
 
     /**
@@ -38,6 +41,8 @@ class JobState extends BaseContext
 
         foreach ($medias as $media) {
             $this->log("\n--------------------\n" . $media['id'] . ' checking job state...' . "\n--------------------\n");
+
+            // ひとつのメディアでの失敗が全体に影響しないように、ひとつずつtry-catch
             try {
                 $url = $this->tryDeliverMedia($media['id'], $media['job_id'], $media['job_state']);
 
@@ -46,7 +51,9 @@ class JobState extends BaseContext
                     $this->sendEmail($media['code'], $media['user_id']);
                 }
             } catch (\Exception $e) {
-                $this->log($e->getMessage());
+                $message = 'tryDeliverMedia throw exception. $mediaId:' . $media['id'] . ' message:' . $e->getMessage();
+                $this->log($message);
+                $this->reportError($message);
             }
         }
     }
@@ -73,7 +80,8 @@ class JobState extends BaseContext
             // メディアサービスよりジョブを取得
             $job = $mediaServicesWrapper->getJob($jobId);
         } catch (\Exception $e) {
-            $this->log('fail in getting job from media service: ' . $e->getMessage());
+            $message = '$mediaServicesWrapper->getJob() throw exception. message:' . $e->getMessage();
+            throw $e;
         }
 
         if (!is_null($job)) {
@@ -111,17 +119,19 @@ class JobState extends BaseContext
                         $assetNames4deliver = $this->getAssetNames4deliver();
 
                         if (in_array($asset->getName(), $assetNames4deliver)) {
-                            $url = $this->createUrl($asset->getId(), $asset->getName(), $mediaId);
+                            $urls = $this->createUrls($asset->getId(), $asset->getName(), $mediaId);
 
                             // タスク追加
-                            $query = sprintf("INSERT INTO task (media_id, name, url, created_at, updated_at) VALUES ('%s', '%s', '%s', %s, %s);",
-                                $mediaId,
-                                $asset->getName(),
-                                $url,
-                                'datetime(\'now\', \'localtime\')',
-                                'datetime(\'now\', \'localtime\')');
-                            $this->log('$query: ' . $query);
-                            $this->db->exec($query);
+                            foreach ($urls as $name => $url) {
+                                $query = sprintf("INSERT INTO task (media_id, name, url, created_at, updated_at) VALUES ('%s', '%s', '%s', %s, %s);",
+                                    $mediaId,
+                                    $name,
+                                    $url,
+                                    'datetime(\'now\', \'localtime\')',
+                                    'datetime(\'now\', \'localtime\')');
+                                $this->log('$query: ' . $query);
+                                $this->db->exec($query);
+                            }
                         }
                     }
                 // 未完了の場合、ステータスの更新のみ
@@ -136,9 +146,9 @@ class JobState extends BaseContext
 
                 $this->db->commit();
             } catch (\Exception $e) {
-                $this->log('fail in delivering url for streaming: ' . $e->getMessage());
                 $this->db->rollBack();
-                $url = null;
+                $message = 'delivering url for streaming throw exception. message:' . $e->getMessage();
+                throw $e;
             }
         }
 
@@ -150,35 +160,37 @@ class JobState extends BaseContext
     /**
      * URL発行のターゲットとなるアセット名リストを取得する
      *
-     * @return multitype:string
+     * @return array
      */
     private function getAssetNames4deliver()
     {
-        return array(
+        return [
             \Mms\Lib\Models\Task::NAME_ADAPTIVE_BITRATE_MP4,
-            \Mms\Lib\Models\Task::NAME_SMOOTH_STREAMING,
-            \Mms\Lib\Models\Task::NAME_SMOOTH_STREAMING_PLAYREADY,
-            \Mms\Lib\Models\Task::NAME_HLS,
-            \Mms\Lib\Models\Task::NAME_HLS_PLAYREADY
-        );
+//             \Mms\Lib\Models\Task::NAME_SMOOTH_STREAMING,
+//             \Mms\Lib\Models\Task::NAME_SMOOTH_STREAMING_PLAYREADY,
+//             \Mms\Lib\Models\Task::NAME_HLS,
+//             \Mms\Lib\Models\Task::NAME_HLS_PLAYREADY
+        ];
     }
 
     /**
      * アセットに対してストリーミングURLを生成する
+     * 動的パッケージングを使用しているため、ひとつのアセットから複数のストリームタイプのURLを生成できる可能性がある
+     * @see http://msdn.microsoft.com/ja-jp/library/jj889436.aspx
      *
-     * @param string        $assetId
-     * @param string        $assetName
-     * @param string        $mediaId
-     * @return string
+     * @param string $assetId
+     * @param string $assetName
+     * @param string $mediaId
+     * @return array
      */
-    private function createUrl($assetId, $assetName, $mediaId)
+    private function createUrls($assetId, $assetName, $mediaId)
     {
         $this->log("\n--------------------\n" . 'start function: ' . __FUNCTION__ . "\n--------------------\n");
         $this->log('args: ' . print_r(func_get_args(), true));
 
         $mediaServicesWrapper = $this->getMediaServicesWrapper();
 
-        // 特定のAssetに対して、同時に 5 つを超える一意のLocatorを関連付けることはできない
+        // 特定のAssetに対して、同時に5つを超える一意のLocatorを関連付けることはできない
         // 万が一OnDemandOriginロケーターがあれば削除
         $locators = $mediaServicesWrapper->getAssetLocators($assetId);
         foreach ($locators as $locator) {
@@ -201,20 +213,26 @@ class JobState extends BaseContext
         $locator = $mediaServicesWrapper->createLocator($locator);
 
         // URLを生成
+        $urls = [];
         switch ($assetName) {
-            case 'http_live_streaming':
-            case 'http_live_streaming_playready':
-                $url = sprintf('%s%s-m3u8-aapl.ism/Manifest(format=m3u8-aapl)', $locator->getPath(), $mediaId);
+            // adaptive bitrate mp4のアセットからは、mpeg dash, smooth streaming, hlsの3つのURLを生成
+            case \Mms\Lib\Models\Task::NAME_ADAPTIVE_BITRATE_MP4:
+                $urls[\Mms\Lib\Models\Task::NAME_MPEG_DASH] = sprintf('%s%s.ism/Manifest(format=mpd-time-csf)', $locator->getPath(), $mediaId);
+                $urls[\Mms\Lib\Models\Task::NAME_SMOOTH_STREAMING] = sprintf('%s%s.ism/Manifest', $locator->getPath(), $mediaId);
+                $urls[\Mms\Lib\Models\Task::NAME_HLS] = sprintf('%s%s.ism/Manifest(format=m3u8-aapl)', $locator->getPath(), $mediaId);
                 break;
+//             case \Mms\Lib\Models\Task::NAME_HLS:
+//             case \Mms\Lib\Models\Task::NAME_HLS_PLAYREADY:
+//                 $urls[$assetName] = sprintf('%s%s-m3u8-aapl.ism/Manifest(format=m3u8-aapl)', $locator->getPath(), $mediaId);
+//                 break;
             default:
-                $url = sprintf('%s%s.ism/Manifest', $locator->getPath(), $mediaId);
                 break;
         }
 
-        $this->log('url has been created: ' . $url);
+        $this->log('urls have been created: ' . print_r($urls, true));
         $this->log("\n--------------------\n" . 'end function: ' . __FUNCTION__ . "\n--------------------\n");
 
-        return $url;
+        return $urls;
     }
 
     /**
@@ -238,7 +256,7 @@ class JobState extends BaseContext
             $subject = 'ストリーミングURLが発行さされました';
             $message = 'http://pmmedia.cloudapp.net/media/' . $mediaCode;
             $headers = 'From: webmaster@pmmedia.cloudapp.net' . "\r\n"
-            . 'Reply-To: webmaster@pmmedia.cloudapp.net';
+                     . 'Reply-To: webmaster@pmmedia.cloudapp.net';
             if (!mail($email, $subject, $message, $headers)) {
                 $egl = error_get_last();
                 $this->log('メール送信に失敗しました' . $egl['message']);

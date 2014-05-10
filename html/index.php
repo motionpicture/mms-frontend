@@ -1,27 +1,14 @@
 <?php
-// 環境取得
-$modeFile = dirname(__FILE__) . '/../mode.php';
-if (false === is_file($modeFile)) {
-    exit('The application "mode file" does not exist.');
-}
-require_once($modeFile);
-if (empty($mode)) {
-    exit('The application "mode" does not exist.');
-}
-
 session_cache_limiter(false);
 session_start();
 
 require_once dirname(__FILE__) . '/../slim_apps/Frontend/Lib/Slim.php';
 
 $app = new \Mms\Frontend\Lib\Slim([
-    'debug'       => true,
     'log.enable' => true,
 //     'log.path'    => '/../log',
 //     'log.level'    => 8,
-    'log.writer' => new \Slim\LogWriter(fopen(dirname(__FILE__) . '/../log/mms_slim.log', 'a+')),
     'templates.path' => dirname(__FILE__) . '/../slim_apps/Frontend/Templates',
-    'mode'           => $mode
 ]);
 
 $app->hook('slim.before', function () use ($app) {
@@ -246,13 +233,19 @@ $app->get('/media/:code', function ($code) use ($app) {
         $medias = $statement->fetchAll();
 
         foreach ($medias as $key => $media) {
-            $medias[$key]['urls'] = array();
+            $medias[$key]['urls'] = [
+                \Mms\Lib\Models\Task::NAME_MPEG_DASH => '',
+                \Mms\Lib\Models\Task::NAME_SMOOTH_STREAMING => '',
+                \Mms\Lib\Models\Task::NAME_HLS => ''
+            ];
 
-            // ストリーミングURLの取得
-            $query = "SELECT url FROM task WHERE media_id = '{$media['id']}' AND name = '" . \Mms\Lib\Models\Task::NAME_ADAPTIVE_BITRATE_MP4 . "' ORDER BY updated_at DESC";
+            $query = "SELECT name, url FROM task WHERE media_id = '{$media['id']}'";
             $statement = $app->db->query($query);
-            $url = $statement->fetchColumn();
-            $medias[$key]['urls']['smooth_streaming'] = $url;
+            $tasks = $statement->fetchAll();
+
+            foreach ($tasks as $task) {
+                $medias[$key]['urls'][$task['name']] = $task['url'];
+            }
         }
     } catch (Exception $e) {
         $app->log->debug(print_r($e, true));
@@ -264,8 +257,7 @@ $app->get('/media/:code', function ($code) use ($app) {
     return $app->render(
         'media/show.php',
         [
-            'medias'   => $medias,
-            'jobState' => new \Mms\Lib\JobState,
+            'medias' => $medias
         ]
     );
 })->name('media_by_code');

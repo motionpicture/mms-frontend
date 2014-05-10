@@ -25,6 +25,13 @@ class Task
     const NAME_SMOOTH_STREAMING = 'smooth_streaming';
 
     /**
+     * タスク名 "MPEG-DASH"
+     *
+     * @var string
+     */
+    const NAME_MPEG_DASH = 'mpeg_dash';
+
+    /**
      * タスク名 "Http Live Streaming"
      *
      * @var string
@@ -37,6 +44,13 @@ class Task
      * @var string
      */
     const NAME_SMOOTH_STREAMING_PLAYREADY = 'smooth_streaming_playready';
+
+    /**
+     * タスク名 "MPEG-DASH(PlayReady保護)"
+     *
+     * @var string
+     */
+    const NAME_MPEG_DASH_PLAYREADY = 'mpeg_dash_playready';
 
     /**
      * タスク名 "Http Live Streaming(PlayReady保護)"
