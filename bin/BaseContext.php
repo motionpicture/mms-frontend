@@ -22,6 +22,7 @@ class BaseContext
     private static $blobServicesWrapper = null;
     private static $blobAuthenticationScheme = null;
     private static $isDev = false;
+    private static $mode;
 
     function __construct()
     {
@@ -35,9 +36,10 @@ class BaseContext
             exit('The application "mode" does not exist.');
         }
 
+        self::$mode = $mode;
         $this->db = \Mms\Lib\PDO::getInstance($mode);
 
-        $this->logFile = dirname(__FILE__) . '/../log/bin/mms_bin_' . date('Ymd') . '.log';
+        $this->logFile = dirname(__FILE__) . '/../log/bin/mms_bin_' . $mode . '_' . date('Ymd') . '.log';
 
         if ($mode == 'development') {
             self::$isDev = true;
@@ -110,6 +112,12 @@ class BaseContext
         return self::$blobAuthenticationScheme;
     }
 
+    /**
+     * ログ出力
+     *
+     * @param string $content
+     * @return none
+     */
     function log($content)
     {
         $log = print_r($content, true) . "\n";
@@ -127,16 +135,55 @@ class BaseContext
         }
     }
 
+    /**
+     * 環境文字列を取得する
+     *
+     * @return string
+     */
+    public function getMode()
+    {
+      return self::$mode;
+    }
+
+    /**
+     * 開発環境かどうかを取得する
+     *
+     * @return boolean
+     */
     public function getIsDev()
     {
         return self::$isDev;
     }
 
+    /**
+     * デバッグ出力
+     *
+     * @param string $content
+     * @return none
+     */
     function debug($content)
     {
-        echo '<pre>';
-        print_r($content);
-        echo '</pre>';
+        // 開発環境のみログ出力
+        if ($this->getIsDev()) {
+            $this->log($content);
+        }
+    }
+
+    /**
+     * エラー通知
+     *
+     * @param string $message
+     */
+    function reportError($message)
+    {
+        $email = 'ilovegadd@gmail.com';
+        $subject = '[ムビチケ動画管理システム]エラー通知';
+        $headers = 'From: webmaster@pmmedia.cloudapp.net' . "\r\n"
+                 . 'Reply-To: webmaster@pmmedia.cloudapp.net';
+        if (!mail($email, $subject, $message, $headers)) {
+            $egl = error_get_last();
+            $this->log('reportError throw exception. message:' . $egl['message']);
+        }
     }
 }
 ?>
