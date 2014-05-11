@@ -8,7 +8,6 @@ $app = new \Mms\Api\Lib\Slim([
     'log.enable' => true,
 //     'log.path'    => '/../log',
 //     'log.level'    => 8,
-    'log.writer' => new \Slim\LogWriter(fopen(dirname(__FILE__) . '/../../log/api.log', 'a+')),
     'templates.path' => dirname(__FILE__) . '/../../slim_apps/Api/Templates'
 ]);
 
@@ -38,7 +37,9 @@ $app->get('/media/stream/:mcode/:categoryId/:type', function ($mcode, $categoryI
             $url = $statement->fetchColumn();
 
             if ($url != '') {
-                $options = ['url' => $url];
+                $options = [
+                    'url' => $url
+                ];
                 return $app->output('SUCCESS', '', $options);
             } else {
                 return $app->output('FAILURE', '指定のストリームタイプに対応するURLは存在しません');
@@ -49,20 +50,63 @@ $app->get('/media/stream/:mcode/:categoryId/:type', function ($mcode, $categoryI
         } else {
             return $app->output('FAILURE', '指定の作品コードとカテゴリーに対応するメディアは存在しません');
         }
-    } catch (Exception $e) {
-        $app->log->error('message:' . $e->getMessage());
+    } catch (\Exception $e) {
         throw $e;
     }
 
-    $e = new Exception('予期せぬエラー');
-    $app->log->error('message:' . $e->getMessage());
+    $e = new \Exception('予期せぬエラー');
     throw $e;
 })->name('media_stream');
+
+/**
+ * ストリーム可能なメディア情報を全て取得する
+ */
+$app->get('/streamable_medias', function () use ($app) {
+    $app->log->debug('args: ' . print_r(func_get_args(), true));
+
+    // 公開中かつジョブステータス完了のメディアを取得
+    $medias = [];
+    try {
+        $where = "job_state == " . \WindowsAzure\MediaServices\Models\Job::STATE_FINISHED
+                . " AND start_at IS NOT NULL AND end_at IS NOT NULL"
+                . " AND start_at <> '' AND end_at <> ''"
+                . " AND start_at <= datetime('now', 'localtime') AND end_at >= datetime('now', 'localtime')";
+        $query = "SELECT id, code, mcode, category_id, version, size, extension, movie_name, playtime_string, playtime_seconds, start_at, end_at FROM media WHERE " . $where;
+        $statement = $app->db->query($query);
+        while ($res = $statement->fetch()) {
+            // タスクがあればリストに追加する
+            $query = "SELECT name, url FROM task WHERE media_id = '{$res['id']}'";
+            $statement = $app->db->query($query);
+            $tasks = $statement->fetchAll();
+
+            if (!empty($tasks)) {
+                $urls = [];
+                foreach ($tasks as $task) {
+                    $urls[$task['name']] = $task['url'];
+                }
+
+                $res['urls'] = $urls;
+                $medias[] = $res;
+            }
+        }
+    } catch (\Exception $e) {
+        throw $e;
+    }
+
+    return $app->output('SUCCESS', '', [
+        'medias' => $medias
+    ]);
+})->name('streamable_medias');
 
 /**
  * Error Handler(非デバッグモードの場合のみ動作する)
  */
 $app->error(function (\Exception $e) use ($app) {
+    $app->log->error('route:{router}', [
+        'exception' => $e,
+        'router' => print_r($app->router->getCurrentRoute()->getName(), true)
+    ]);
+
     return $app->output('FAILURE', $e->getMessage());
 });
 

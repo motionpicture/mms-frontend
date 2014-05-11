@@ -39,6 +39,9 @@ class Slim extends \Slim\Slim
             $userSettings['debug'] = false;
         }
 
+        // ログファイル指定
+        $userSettings['log.writer'] = new \Slim\LogWriter(fopen(dirname(__FILE__) . '/../../../log/api_' . $mode . '_' . date('Ymd') . '.log', 'a+'));
+
         parent::__construct($userSettings);
 
         $this->db = \Mms\Lib\PDO::getInstance($userSettings['mode']);
