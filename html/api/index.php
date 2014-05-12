@@ -67,17 +67,25 @@ $app->get('/streamable_medias', function () use ($app) {
     // 公開中かつジョブステータス完了のメディアを取得
     $medias = [];
     try {
-        $where = "job_state == " . \WindowsAzure\MediaServices\Models\Job::STATE_FINISHED
-                . " AND start_at IS NOT NULL AND end_at IS NOT NULL"
-                . " AND start_at <> '' AND end_at <> ''"
-                . " AND start_at <= datetime('now', 'localtime') AND end_at >= datetime('now', 'localtime')";
-        $query = "SELECT id, code, mcode, category_id, version, size, extension, movie_name, playtime_string, playtime_seconds, start_at, end_at FROM media WHERE " . $where;
+        $query = 'SELECT m1.id, m1.code, m1.mcode, m1.category_id, m1.version, m1.size, m1.extension, m1.movie_name, m1.playtime_string, m1.playtime_seconds, m1.start_at, m1.end_at, category.name AS category_name';
+        $query .= ' FROM media AS m1'
+                . ' INNER JOIN category ON m1.category_id = category.id';
+
+        $where = "m1.id IS NOT NULL"
+                . " AND m1.job_state == " . \WindowsAzure\MediaServices\Models\Job::STATE_FINISHED
+                . " AND m1.start_at IS NOT NULL AND m1.end_at IS NOT NULL"
+                . " AND m1.start_at <> '' AND m1.end_at <> ''"
+                . " AND m1.start_at <= datetime('now', 'localtime') AND m1.end_at >= datetime('now', 'localtime')";
+        // 最新バージョンのメディアのみ取得
+        $where .= " AND m1.version = (SELECT MAX(m2.version) FROM media AS m2 WHERE m1.code =  m2.code)";
+
+        $query .= ' WHERE ' . $where;
         $statement = $app->db->query($query);
         while ($res = $statement->fetch()) {
-            // タスクがあればリストに追加する
-            $query = "SELECT name, url FROM task WHERE media_id = '{$res['id']}'";
-            $statement = $app->db->query($query);
-            $tasks = $statement->fetchAll();
+          // タスクがあればリストに追加する
+            $query2 = "SELECT name, url FROM task WHERE media_id = '{$res['id']}'";
+            $statement2 = $app->db->query($query2);
+            $tasks = $statement2->fetchAll();
 
             if (!empty($tasks)) {
                 $urls = [];
