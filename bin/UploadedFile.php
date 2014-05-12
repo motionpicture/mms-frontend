@@ -105,6 +105,8 @@ class UploadedFile extends BaseContext
         $userId = pathinfo(pathinfo($path, PATHINFO_DIRNAME), PATHINFO_FILENAME);
         $size = (filesize($path)) ? filesize($path) : '';
         $extension = pathinfo($path, PATHINFO_EXTENSION);
+        $startAt = '';
+        $endAt = '';
 
         // バージョンを確定
         $query = "SELECT MAX(version) AS max_version FROM media WHERE mcode = '{$mcode}' AND category_id = '{$categoryId}'";
@@ -115,6 +117,12 @@ class UploadedFile extends BaseContext
             $version = 1;
         } else {
             $version = $maxVersion + 1;
+            // 既存バージョンの公開開始終了日時を引き継ぐ
+            $query = "SELECT start_at, end_at FROM media WHERE mcode = '{$mcode}' AND category_id = '{$categoryId}' AND version = '{$maxVersion}'";
+            $statement = $this->db->query($query);
+            $maxVersionMedia = $statement->fetch();
+            $startAt = $maxVersionMedia['start_at'];
+            $endAt = $maxVersionMedia['end_at'];
         }
 
         $options = [
@@ -123,7 +131,9 @@ class UploadedFile extends BaseContext
             'userId'     => $userId,
             'size'       => $size,
             'extension'  => $extension,
-            'version'    => $version
+            'version'    => $version,
+            'startAt'    => $startAt,
+            'endAt'      => $endAt
         ];
 
         // 再生時間を取得
@@ -187,19 +197,9 @@ class UploadedFile extends BaseContext
         try {
             $media = $this->path2media(self::$filePath);
 
-            $query = sprintf(
-                "INSERT INTO media (id, code, mcode, size, extension, version, user_id, movie_name, playtime_string, playtime_seconds, category_id, created_at, updated_at) VALUES ('%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', datetime('now', 'localtime'), datetime('now', 'localtime'));",
-                $media->getId(),
-                $media->getCode(),
-                $media->getMcode(),
-                $media->getSize(),
-                $media->getExtension(),
-                $media->getVersion(),
-                $media->getUserId(),
-                $media->getMovieName(),
-                $media->getPlaytimeString(),
-                $media->getPlaytimeSeconds(),
-                $media->getCategoryId()
+            $query = vsprintf(
+                "INSERT INTO media (id, code, mcode, category_id, version, size, extension, user_id, movie_name, playtime_string, playtime_seconds, job_id, job_state, job_start_at, job_end_at, start_at, end_at, created_at, updated_at) VALUES ('%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', datetime('now', 'localtime'), datetime('now', 'localtime'))",
+                $media->toArray()
             );
             $this->log('$query:' . $query);
             $this->db->exec($query);

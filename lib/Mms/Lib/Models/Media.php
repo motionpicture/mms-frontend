@@ -139,6 +139,36 @@ class Media
         }
     }
 
+    /**
+     * media object to array
+     *
+     * @return array
+     */
+    public function toArray()
+    {
+      return [
+          'id'               => $this->_id,
+          'code'             => $this->_code,
+          'mcode'            => $this->_mcode,
+          'category_id'      => $this->_categoryId,
+          'version'          => $this->_version,
+          'size'             => $this->_size,
+          'extension'        => $this->_extension,
+          'user_id'          => $this->_userId,
+          'movie_name'       => $this->_movieName,
+          'playtime_string'  => $this->_playtimeString,
+          'playtime_seconds' => $this->_playtimeSeconds,
+          'job_id'           => $this->_jobId,
+          'job_state'        => $this->_jobState,
+          'job_start_at'     => $this->_jobStartAt,
+          'job_end_at'       => $this->_jobEndAt,
+          'start_at'         => $this->_startAt,
+          'end_at'           => $this->_endAt,
+          'created_at'       => $this->_createdAt,
+          'updated_at'       => $this->_updatedAt
+       ];
+    }
+
     public function getId()
     {
         return $this->_id;
