@@ -1,6 +1,8 @@
 ﻿<?php require dirname(__FILE__) . '/../header.php' ?>
 
 <script src="/js/media/show.js"></script>
+<script src="/js/dash.all.js"></script>
+<script src="/js/Silverlight.js"></script>
 
 <div class="row">
     <div class="main">
@@ -126,72 +128,66 @@
 
             <div class="col-xs-12 col-sm-6 col-lg-6">
                 <?php if ($media['urls'][\Mms\Lib\Models\Task::NAME_MPEG_DASH]) { ?>
+                <?php $mpegDashPlayerId = 'mpegDashPlayer_ver' . $media['version'] ?>
+                <script>
+                $(function(){
+                    var url = '<?php echo $media['urls'][\Mms\Lib\Models\Task::NAME_MPEG_DASH] ?>';
+                    var context = new Dash.di.DashContext();
+                    var player = new MediaPlayer(context);
+                    player.startup();
+                    player.attachView($('#<?php echo $mpegDashPlayerId ?>').get(0));
+                    player.setAutoPlay(false);
+                    player.attachSource(url);
+                });
+                </script>
                 <div class="row placeholders">
-                    <script src="/js/dash.all.js"></script>
-                    <script>
-                    // Videoエレメントの設定と、Dash Playerのアタッチ
-                    function setupVideo() {
-                        var url = "<?php echo $media['urls'][\Mms\Lib\Models\Task::NAME_MPEG_DASH] ?>";
-                        var context = new Dash.di.DashContext();
-                        var player = new MediaPlayer(context);
-                        player.startup();
-                        player.attachView(document.querySelector('#mpegDashPlayer_ver<?php echo $media['version'] ?>'));
-                        player.attachSource(url);
-                    }
-                    window.addEventListener('load', setupVideo, false);
-                    </script>
-                    <video width="400" height="300" id="mpegDashPlayer_ver<?php echo $media['version'] ?>" src="" autoplay controls>MPEG DASH</video>
+                    <video
+                        width="280"
+                        height="210"
+                        id="<?php echo $mpegDashPlayerId ?>"
+                        controls>MPEG DASH</video>
                     <h4>MPEG DASH on HTML5</h4>
                     <span class="text-muted"></span>
                 </div>
-
-                <!--
-                <div class="row placeholders">
-                    <object data="data:application/x-silverlight-2," type="application/x-silverlight-2" width="400px" height="300px">
-                        <param name="source" value="/smoothstreamingplayer-2.2010.1001.1/SmoothStreamingPlayer.xap"/>
-                        <param name="onError" value="onSilverlightError" />
-                        <param name="background" value="white" />
-                        <param name="minRuntimeVersion" value="4.0.50401.0" />
-                        <param name="autoUpgrade" value="true" />
-                        <param name="InitParams" value="selectedcaptionstream=textstream_eng,mediaurl=<?php echo $media['urls'][\Mms\Lib\Models\Task::NAME_MPEG_DASH] ?>" />
-                        <a href="http://go.microsoft.com/fwlink/?LinkID=149156&v=4.0.50401.0" style="text-decoration:none">
-                            <img src="http://go.microsoft.com/fwlink/?LinkId=161376" alt="Get Microsoft Silverlight" style="border-style:none"/>
-                        </a>
-                    </object>
-
-                    <h4>MPEG DASH on Silverlight</h4>
-                    <span class="text-muted"></span>
-                </div>
-                -->
                 <?php } ?>
 
                 <?php if ($media['urls'][\Mms\Lib\Models\Task::NAME_SMOOTH_STREAMING]) { ?>
+                <?php $smoothStreamingPlayerId = 'smoothStreamingPlayer_ver' . $media['version'] ?>
+                <script>
+                $(function(){
+                    Silverlight.createObject(
+                        '/smoothstreamingplayer-2.2010.1001.1/SmoothStreamingPlayer.xap',
+                        $('#<?php echo $smoothStreamingPlayerId ?>').get(0),
+                        'silverlight_smoothStreamingPlayer_ver<?php echo $media['version'] ?>',
+                        {
+                            width: '280',
+                            height: '210',
+                            autoUpgrade: 'true',
+                            minRuntimeVersion: '4.0.50401.0',
+                            background: '#FFFFFF',
+                        },
+                        {
+                            onError: null,
+                            onLoad: null
+                        },
+                        'mediaurl=<?php echo $media['urls'][\Mms\Lib\Models\Task::NAME_SMOOTH_STREAMING] ?>,autoplay=false',
+                        null
+                    );
+                });
+                </script>
                 <div class="row placeholders">
-                    <object data="data:application/x-silverlight-2," type="application/x-silverlight-2" width="400px" height="300px">
-                        <param name="source" value="/smoothstreamingplayer-2.2010.1001.1/SmoothStreamingPlayer.xap"/>
-                        <param name="onError" value="onSilverlightError" />
-                        <param name="background" value="white" />
-                        <param name="minRuntimeVersion" value="4.0.50401.0" />
-                        <param name="autoUpgrade" value="true" />
-                        <param name="InitParams" value="selectedcaptionstream=textstream_eng,mediaurl=<?php echo $media['urls'][\Mms\Lib\Models\Task::NAME_SMOOTH_STREAMING] ?>" />
-                        <a href="http://go.microsoft.com/fwlink/?LinkID=149156&v=4.0.50401.0" style="text-decoration:none">
-                            <img src="http://go.microsoft.com/fwlink/?LinkId=161376" alt="Get Microsoft Silverlight" style="border-style:none"/>
-                        </a>
-                    </object>
-
+                    <div id="<?php echo $smoothStreamingPlayerId ?>"></div>
                     <h4>Smooth Streaming on Silverlight</h4>
-                    <span class="text-muted">http://technet.microsoft.com/ja-jp/library/dd775198.aspx</span>
+                    <span class="text-muted">http://msdn.microsoft.com/ja-jp/library/cc838126(v=vs.95).aspx</span>
                 </div>
                 <?php } ?>
 
                 <?php if ($media['urls'][\Mms\Lib\Models\Task::NAME_HLS]) { ?>
                 <div class="row placeholders">
-                    <video width="400"
-                           height="300"
+                    <video width="280"
+                           height="210"
                            src="<?php echo $media['urls'][\Mms\Lib\Models\Task::NAME_HLS] ?>"
-                           autoplay="true"
-                           controls="true">HLS</video>
-
+                           controls>HLS</video>
                     <h4>Http Live Streaming on HTML5</h4>
                     <span class="text-muted"></span>
                 </div>
