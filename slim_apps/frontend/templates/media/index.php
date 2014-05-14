@@ -43,23 +43,13 @@ table td {
             <table class="table table-striped">
                 <thead>
                     <tr>
-                        <th>作品コード</th>
-                        <th>作品名</th>
-                        <th>カテゴリー</th>
-                        <th>バージョン</th>
-                        <th>公開開始</th>
-                        <th>公開終了</th>
-                        <th>サイズ(MB)</th>
-                        <th>再生時間</th>
-                        <th>ユーザー</th>
-                        <th>ジョブ進捗</th>
-                        <th>更新日時</th>
-                        <th></th>
+                        <?php require dirname(__FILE__) . '../_tableHeaders.php' ?>
                     </tr>
                 </thead>
 
                 <tbody>
-                    <?php foreach ($medias as $media) { ?>
+                    <?php foreach ($medias as $key => $media) { ?>
+                    <?php if ($key == $perPage) {break;} ?>
                     <tr>
                         <td><?php echo $media['mcode'] ?></td>
                         <td><?php echo $media['movie_name'] ?></td>
@@ -87,6 +77,13 @@ table td {
                 </tbody>
             </table>
         </div>
+
+        <ul class="pager">
+            <?php $previous = '/medias?' . http_build_query(array_merge($_GET, array('page' => $searchConditions['page'] - 1))); ?>
+            <?php $next = '/medias?' . http_build_query(array_merge($_GET, array('page' => $searchConditions['page'] + 1))); ?>
+            <li class="previous<?php if ($searchConditions['page'] < 2) { ?> disabled<?php } ?>"><a href="<?php echo $previous ?>">&larr; Older</a></li>
+            <li class="next<?php if (count($medias) <= $perPage) { ?> disabled<?php } ?>"><a href="<?php echo $next ?>">Newer &rarr;</a></li>
+        </ul>
     </div>
 </div>
 
