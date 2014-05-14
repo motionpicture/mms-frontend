@@ -17,36 +17,55 @@ class EndedMedias extends BaseContext
 
     public function delete()
     {
-        $where = "start_at IS NOT NULL AND end_at IS NOT NULL"
-               . " AND start_at <> '' AND end_at <> ''"
-               . " AND start_at < datetime('now', 'localtime') AND end_at < datetime('now', 'localtime')";
-
         // 公開終了日時の過ぎたメディアを取得
-        $medias = [];
         $mediaIds = [];
+        $jobIds = [];
         try {
+            $where = "job_id IS NOT NULL AND job_id <> ''"
+                   . " AND start_at IS NOT NULL AND end_at IS NOT NULL"
+                   . " AND start_at <> '' AND end_at <> ''"
+                   . " AND start_at < datetime('now', 'localtime') AND end_at < datetime('now', 'localtime')";
             $query = "SELECT id, job_id FROM media WHERE " . $where;
             $statement = $this->db->query($query);
             while ($res = $statement->fetch()) {
-                $medias[] = $res;
                 $mediaIds[] = $res['id'];
+                $jobIds[] = $res['job_id'];
             }
         } catch (\Exception $e) {
-            $this->log($e->getMessage());
+            $this->log('selecting medias throw exception. message:' . $e->getMessage());
             return;
         }
 
-        $this->log('$medias: ' . count($medias));
+        $this->log('$mediaIds:' . print_r($mediaIds, true));
+        $this->log('$jobIds:' . print_r($jobIds, true));
+
+        if ($this->deleteWithTasks($mediaIds)) {
+            foreach ($jobIds as $jobId) {
+                $this->deleteAssets($jobId);
+            }
+        }
+    }
+
+    /**
+     * タスクと共にメディアを削除する
+     *
+     * @param array $mediaIds
+     * @return boolean
+     */
+    private function deleteWithTasks($mediaIds)
+    {
+        $this->log("\n--------------------\n" . 'start function: ' . __FUNCTION__ . "\n--------------------\n");
+        $this->log('args: ' . print_r(func_get_args(), true));
 
         $count4deleteMedia = 0;
         $count4deleteTask = 0;
+        $isDeleted = false;
 
-        if (!empty($medias)) {
-            $isDeleted = false;
+        if (!empty($mediaIds)) {
             $this->db->beginTransaction();
             try {
                 // メディア削除
-                $query = "DELETE FROM media WHERE " . $where;
+                $query = "DELETE FROM media WHERE id IN ('" . implode("','", $mediaIds) . "')";
                 $this->log('$query:' . $query);
                 $count4deleteMedia = $this->db->exec($query);
 
@@ -59,25 +78,16 @@ class EndedMedias extends BaseContext
                 $isDeleted = true;
             } catch (\Exception $e) {
                 $this->db->rollBack();
-                $this->log($e->getMessage());
-            }
-
-            if ($isDeleted) {
-                foreach ($medias as $media) {
-                    // ジョブがあればアセットも削除
-                    try {
-                        if ($media['job_id']) {
-                            $this->deleteAssets($media['job_id']);
-                        }
-                    } catch (\Exception $e) {
-                        $this->log('fail in deleting assets. message: ' . $e->getMessage());
-                    }
-                }
+                $this->log('deleteWithTasks throw exception. message:' . $e->getMessage());
             }
         }
 
         $this->log('$count4deleteMedia: ' . $count4deleteMedia);
         $this->log('$count4deleteTask: ' . $count4deleteTask);
+
+        $this->log("\n--------------------\n" . 'end function: ' . __FUNCTION__ . "\n--------------------\n");
+
+        return $isDeleted;
     }
 
     /**
@@ -91,27 +101,29 @@ class EndedMedias extends BaseContext
         $this->log("\n--------------------\n" . 'start function: ' . __FUNCTION__ . "\n--------------------\n");
         $this->log('args: ' . print_r(func_get_args(), true));
 
-        if (is_null($jobId)) {
-            $e = new \Exception('job id are required.');
-            $this->log('fail in deleting assets: ' . $e->getMessage());
-            throw $e;
+        if (is_null($jobId) || empty($jobId)) {
+            return;
         }
 
-        $mediaServicesWrapper = $this->getMediaServicesWrapper();
+        try {
+            $mediaServicesWrapper = $this->getMediaServicesWrapper();
 
-        // ジョブのアセットを取得
-        $inputAssets = $mediaServicesWrapper->getJobInputMediaAssets($jobId);
-        $outputAssets = $mediaServicesWrapper->getJobOutputMediaAssets($jobId);
+            // ジョブのアセットを取得
+            $inputAssets = $mediaServicesWrapper->getJobInputMediaAssets($jobId);
+            $outputAssets = $mediaServicesWrapper->getJobOutputMediaAssets($jobId);
 
-        $this->log('$inputAssets:' . print_r($inputAssets, true));
-        $this->log('$outputAssets:' . print_r($outputAssets, true));
+            $this->log('$inputAssets:' . print_r($inputAssets, true));
+            $this->log('$outputAssets:' . print_r($outputAssets, true));
 
-        // アセット削除
-        foreach ($inputAssets as $asset) {
-            $mediaServicesWrapper->deleteAsset($asset);
-        }
-        foreach ($outputAssets as $asset) {
-            $mediaServicesWrapper->deleteAsset($asset);
+            // アセット削除
+            foreach ($inputAssets as $asset) {
+                $mediaServicesWrapper->deleteAsset($asset);
+            }
+            foreach ($outputAssets as $asset) {
+                $mediaServicesWrapper->deleteAsset($asset);
+            }
+        } catch (Exception $e) {
+            $this->log('deleteAssets throw exception. jobId:' . $jobId . ' message:' . $e->getMessage());
         }
 
         $this->log("\n--------------------\n" . 'end function: ' . __FUNCTION__ . "\n--------------------\n");
