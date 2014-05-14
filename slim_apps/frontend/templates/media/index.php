@@ -43,7 +43,7 @@ table td {
             <table class="table table-striped">
                 <thead>
                     <tr>
-                        <?php require dirname(__FILE__) . '../_tableHeaders.php' ?>
+                        <?php require dirname(__FILE__) . '/_tableHeaders.php' ?>
                     </tr>
                 </thead>
 
