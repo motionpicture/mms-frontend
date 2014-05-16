@@ -126,19 +126,21 @@ $app->get('/streamable_medias', function () use ($app) {
     $medias = [];
 
     // 検索条件
-    $conditions = [];
+    $conditions = [
+        'showing' => true
+    ];
     if (isset($_GET['mcodes']) && !empty($_GET['mcodes'])) {
        $conditions['mcodes'] = explode(',', $_GET['mcodes']);
     }
     if (isset($_GET['category_id']) && !empty($_GET['category_id'])) {
        $conditions['category_id'] = $_GET['category_id'];
     }
-    if (isset($_GET['showing']) && $_GET['showing'] == '1') {
-        $conditions['showing'] = true;
-    }
-    if (isset($_GET['showing']) && $_GET['showing'] == '0') {
-       $conditions['showing'] = false;
-    }
+//     if (isset($_GET['showing']) && $_GET['showing'] == '1') {
+//         $conditions['showing'] = true;
+//     }
+//     if (isset($_GET['showing']) && $_GET['showing'] == '0') {
+//        $conditions['showing'] = false;
+//     }
 
     try {
         $query = 'SELECT m1.id, m1.code, m1.mcode, m1.category_id, m1.version, m1.size, m1.extension, m1.movie_name, m1.playtime_string, m1.playtime_seconds, m1.start_at, m1.end_at, category.name AS category_name';
@@ -152,9 +154,14 @@ $app->get('/streamable_medias', function () use ($app) {
         $where .= " AND m1.version = (SELECT MAX(m2.version) FROM media AS m2 WHERE m1.code =  m2.code)";
 
         if (isset($conditions['showing']) && $conditions['showing']) {
-            $where .= " AND m1.start_at IS NOT NULL AND m1.end_at IS NOT NULL"
-                    . " AND m1.start_at <> '' AND m1.end_at <> ''"
-                    . " AND m1.start_at <= datetime('now', 'localtime') AND m1.end_at >= datetime('now', 'localtime')";
+            $where .= " AND ("
+                   . "m1.start_at IS NULL OR m1.start_at == ''"
+                   . " OR (m1.start_at IS NOT NULL AND m1.start_at <> '' AND m1.start_at <= datetime('now', 'localtime'))"
+                   . ")"
+                   . " AND ("
+                   . "m1.end_at IS NULL OR m1.end_at == ''"
+                   . " OR (m1.end_at IS NOT NULL AND m1.end_at <> '' AND m1.end_at >= datetime('now', 'localtime'))"
+                   . ")";
         }
 
         if (isset($conditions['showing']) && !$conditions['showing']) {
