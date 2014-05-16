@@ -77,4 +77,10 @@ $(function(){
 
         return false;
     });
+
+    // ページャー無効リンク
+    $('.pager .disabled a').click(function(){
+        console.log($(this));
+        return false;
+    })
 });

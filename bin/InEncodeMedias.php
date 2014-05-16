@@ -11,19 +11,17 @@ use WindowsAzure\MediaServices\Models\Locator;
 set_time_limit(0);
 ini_set('memory_limit', '1024M');
 
-class JobState extends BaseContext
+class InEncodeMedias extends BaseContext
 {
-    function __construct()
+    function __construct($userSettings)
     {
-        parent::__construct();
-
-        $this->logFile = dirname(__FILE__) . '/../log/bin/check_job/check_job_' . $this->getMode() . '_' . date('Ymd') . '.log';
+        parent::__construct($userSettings);
     }
 
     /**
      * ジョブ進捗を確認して更新する
      */
-    public function update()
+    public function checkJobState()
     {
         $medias = [];
 
@@ -36,11 +34,11 @@ class JobState extends BaseContext
             $result = $this->db->query($query);
             $medias = $result->fetchAll();
         } catch (\Exception $e) {
-            $this->log($e->getMessage());
+            $this->logger->log($e->getMessage());
         }
 
         foreach ($medias as $media) {
-            $this->log("\n--------------------\n" . $media['id'] . ' checking job state...' . "\n--------------------\n");
+            $this->logger->log("\n--------------------\n" . $media['id'] . ' checking job state...' . "\n--------------------\n");
 
             // ひとつのメディアでの失敗が全体に影響しないように、ひとつずつtry-catch
             try {
@@ -52,7 +50,7 @@ class JobState extends BaseContext
                 }
             } catch (\Exception $e) {
                 $message = 'tryDeliverMedia throw exception. $mediaId:' . $media['id'] . ' message:' . $e->getMessage();
-                $this->log($message);
+                $this->logger->log($message);
                 $this->reportError($message);
             }
         }
@@ -68,13 +66,13 @@ class JobState extends BaseContext
      */
     private function tryDeliverMedia($mediaId, $jobId, $jobState)
     {
-        $this->log("\n--------------------\n" . 'start function: ' . __FUNCTION__ . "\n--------------------\n");
-        $this->log('args: ' . print_r(func_get_args(), true));
+        $this->logger->log("\n--------------------\n" . 'start function: ' . __FUNCTION__ . "\n--------------------\n");
+        $this->logger->log('args: ' . print_r(func_get_args(), true));
 
         $job = null;
         $url = null;
 
-        $mediaServicesWrapper = $this->getMediaServicesWrapper();
+        $mediaServicesWrapper = $this->azureContext->getMediaServicesWrapper();
 
         try {
             // メディアサービスよりジョブを取得
@@ -99,7 +97,7 @@ class JobState extends BaseContext
                 if ($job->getState() == Job::STATE_FINISHED) {
                     // 念のため、すでにURL発行されていれば全て削除
                     $query = "DELETE FROM task WHERE media_id = '{$mediaId}';";
-                    $this->log('$query: ' . $query);
+                    $this->logger->log('$query: ' . $query);
                     $this->db->exec($query);
 
                     // ジョブに関する情報更新
@@ -109,7 +107,7 @@ class JobState extends BaseContext
                                     date('Y-m-d H:i:s', strtotime('+9 hours', $job->getEndTime()->getTimestamp())),
                                     'datetime(\'now\', \'localtime\')',
                                     $mediaId);
-                    $this->log('$query: ' . $query);
+                    $this->logger->log('$query: ' . $query);
                     $this->db->exec($query);
 
                     // ジョブのアウトプットアセットを取得
@@ -129,7 +127,7 @@ class JobState extends BaseContext
                                     $url,
                                     'datetime(\'now\', \'localtime\')',
                                     'datetime(\'now\', \'localtime\')');
-                                $this->log('$query: ' . $query);
+                                $this->logger->log('$query: ' . $query);
                                 $this->db->exec($query);
                             }
                         }
@@ -140,7 +138,7 @@ class JobState extends BaseContext
                                     $job->getState(),
                                     'datetime(\'now\', \'localtime\')',
                                     $mediaId);
-                    $this->log('$query: ' . $query);
+                    $this->logger->log('$query: ' . $query);
                     $this->db->exec($query);
                 }
 
@@ -152,7 +150,7 @@ class JobState extends BaseContext
             }
         }
 
-        $this->log("\n--------------------\n" . 'end function: ' . __FUNCTION__ . "\n--------------------\n");
+        $this->logger->log("\n--------------------\n" . 'end function: ' . __FUNCTION__ . "\n--------------------\n");
 
         return $url;
     }
@@ -185,10 +183,10 @@ class JobState extends BaseContext
      */
     private function createUrls($assetId, $assetName, $mediaId)
     {
-        $this->log("\n--------------------\n" . 'start function: ' . __FUNCTION__ . "\n--------------------\n");
-        $this->log('args: ' . print_r(func_get_args(), true));
+        $this->logger->log("\n--------------------\n" . 'start function: ' . __FUNCTION__ . "\n--------------------\n");
+        $this->logger->log('args: ' . print_r(func_get_args(), true));
 
-        $mediaServicesWrapper = $this->getMediaServicesWrapper();
+        $mediaServicesWrapper = $this->azureContext->getMediaServicesWrapper();
 
         // 特定のAssetに対して、同時に5つを超える一意のLocatorを関連付けることはできない
         // 万が一OnDemandOriginロケーターがあれば削除
@@ -196,7 +194,7 @@ class JobState extends BaseContext
         foreach ($locators as $locator) {
             if ($locator->getType() == Locator::TYPE_ON_DEMAND_ORIGIN) {
                 $mediaServicesWrapper->deleteLocator($locator);
-                $this->log('OnDemandOrigin locator has been deleted. $locator: '. print_r($locator, true));
+                $this->logger->log('OnDemandOrigin locator has been deleted. $locator: '. print_r($locator, true));
             }
         }
 
@@ -229,8 +227,8 @@ class JobState extends BaseContext
                 break;
         }
 
-        $this->log('urls have been created: ' . print_r($urls, true));
-        $this->log("\n--------------------\n" . 'end function: ' . __FUNCTION__ . "\n--------------------\n");
+        $this->logger->log('urls have been created: ' . print_r($urls, true));
+        $this->logger->log("\n--------------------\n" . 'end function: ' . __FUNCTION__ . "\n--------------------\n");
 
         return $urls;
     }
@@ -243,13 +241,13 @@ class JobState extends BaseContext
      */
     private function sendEmail($mediaCode, $userId)
     {
-        $this->log("\n--------------------\n" . 'start function: ' . __FUNCTION__ . "\n--------------------\n");
-        $this->log('args: ' . print_r(func_get_args(), true));
+        $this->logger->log("\n--------------------\n" . 'start function: ' . __FUNCTION__ . "\n--------------------\n");
+        $this->logger->log('args: ' . print_r(func_get_args(), true));
 
         $query = sprintf('SELECT email FROM user WHERE id = \'%s\';', $userId);
         $statement = $this->db->query($query);
         $email = $statement->fetchColumn();
-        $this->log('$email:' . $email);
+        $this->logger->log('$email:' . $email);
 
         // 送信
         if ($email) {
@@ -259,11 +257,11 @@ class JobState extends BaseContext
                      . 'Reply-To: webmaster@pmmedia.cloudapp.net';
             if (!mail($email, $subject, $message, $headers)) {
                 $egl = error_get_last();
-                $this->log('メール送信に失敗しました' . $egl['message']);
+                $this->logger->log('メール送信に失敗しました' . $egl['message']);
             }
         }
 
-        $this->log("\n--------------------\n" . 'end function: ' . __FUNCTION__ . "\n--------------------\n");
+        $this->logger->log("\n--------------------\n" . 'end function: ' . __FUNCTION__ . "\n--------------------\n");
     }
 }
 

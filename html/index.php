@@ -151,7 +151,10 @@ $app->get('/medias', function () use ($app) {
     $searchConditions = [
         'word'      => '',
         'job_state' => \Mms\Lib\JobState::getAll(),
-        'category'  => []
+        'category'  => [],
+        'page'      => 1,
+        'orderby'   => 'updated_at',
+        'sort'      => 'desc',
     ];
 
     $categories = [];
@@ -166,6 +169,8 @@ $app->get('/medias', function () use ($app) {
     } catch (Exception $e) {
         throw $e;
     }
+
+    $perPage = 20;
 
     try {
         // メディアを取得
@@ -197,7 +202,25 @@ $app->get('/medias', function () use ($app) {
             $query .= sprintf(' AND m1.category_id IN (\'%s\')', implode('\',\'', $searchConditions['category']));
         }
 
-        $query .= ' ORDER BY m1.updated_at DESC';
+        // ソート条件
+        if (isset($_GET['orderby']) && $_GET['orderby'] != '') {
+          $searchConditions['orderby'] = $_GET['orderby'];
+        }
+        if (isset($_GET['sort']) && $_GET['sort'] != '') {
+          $searchConditions['sort'] = $_GET['sort'];
+        }
+        $query .= " ORDER BY m1.{$searchConditions['orderby']} {$searchConditions['sort']}";
+
+        // ページャーで次のページがあるかどうか判定するために、1つ余計に取得しておく
+        $limit = $perPage + 1;
+        $query .= " LIMIT {$limit}";
+
+        // ページ指定あればオフセット
+        if (isset($_GET['page']) && $_GET['page'] != '') {
+          $searchConditions['page'] = (int)$_GET['page'];
+          $offset = $perPage * ($searchConditions['page'] - 1);
+          $query .= " OFFSET {$offset}";
+        }
 
         $statement = $app->db->query($query);
         $medias = $statement->fetchAll();
@@ -213,7 +236,8 @@ $app->get('/medias', function () use ($app) {
             'medias'           => $medias,
             'jobState'         => new \Mms\Lib\JobState,
             'searchConditions' => $searchConditions,
-            'categories'      => $categories
+            'categories'       => $categories,
+            'perPage'          => $perPage
         ]
     );
 })->name('medias');;

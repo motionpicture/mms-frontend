@@ -24,65 +24,58 @@ class UploadedFile extends BaseContext
     // 入力ファイルパス
     private static $filePath = null;
 
-    // 入力ファイルから作成されるメディアのID
-    private static $mediaId = null;
-
-    // 入力ファイルのアップロードされるアセット
-    private static $inputAsset = null;
-
     /**
      * __construct
      *
      * @see http://php.net/manual/ja/features.file-upload.common-pitfalls.php
      */
-    function __construct($filePath)
+    function __construct($userSettings, $filePath)
     {
-        parent::__construct();
+        parent::__construct($userSettings);
 
-        $this->logFile = dirname(__FILE__) . '/../log/bin/process/process_' . $this->getMode() . '_' . date('Ymd') . '.log';
+        if (!$filePath) {
+            throw new \Exception('$filePath is required.');
+        }
 
         self::$filePath = $filePath;
-
-        $this->log('$filePath: ' . $filePath);
     }
 
-    public function process()
+    /**
+     * アップロードされたファイルに対して処理を施す
+     *
+     * 1.DBにメディアを登録
+     * 2.メディアサーバーへアップロード
+     *
+     * @return array
+     */
+    public function path2asset()
     {
-        $job = null;
+        $mediaId = null;
+        $assetId = null;
 
         try {
             if (!is_file(self::$filePath)) {
-              $e = new \Exception('file does not exists.');
-              throw $e;
+                $e = new \Exception('file does not exists.');
+                throw $e;
             }
 
-            $this->createMedia();
+            $mediaId = $this->createMedia();
+            list($assetId, $isComleted) = $this->ingestAsset($mediaId);
 
-            if ($this->ingestAsset()) {
-                $job = $this->createJob(self::$inputAsset);
-
-                if (!is_null($job)) {
-                    $this->updateMedia($job->getId(), $job->getState());
-
-                    // 開発環境以外では元ファイル削除
-                    if (!$this->getIsDev()) {
-                        unlink(self::$filePath);
-                    }
-                }
+            if (!is_null($assetId) && !$isComleted) {
+                $assetId = null;
+                // TODO アセット削除
             }
         } catch (\Exception $e) {
             $message = 'process throw exception. filePath:' . self::$filePath . ' message:' . $e->getMessage();
-            $this->log($message);
+            $this->logger->log($message);
             $this->reportError($message);
+
+            $mediaId = null;
+            $assetId = null;
         }
 
-        // ジョブ作成に失敗した場合、アセットが作成済みであれば削除
-        if (!is_null(self::$inputAsset) && is_null($job)) {
-            try {
-                $this->getMediaServicesWrapper()->deleteAsset(self::$inputAsset);
-            } catch (Exception $e) {
-            }
-        }
+        return [$mediaId, $assetId];
     }
 
     /**
@@ -93,8 +86,8 @@ class UploadedFile extends BaseContext
      */
     private function path2media($path)
     {
-        $this->log("\n--------------------\n" . 'start function: ' . __FUNCTION__ . "\n--------------------\n");
-        $this->log('$path: ' . print_r($path, true));
+        $this->logger->log("\n--------------------\n" . 'start function: ' . __FUNCTION__ . "\n--------------------\n");
+        $this->logger->log('$path: ' . print_r($path, true));
 
         $fileName = pathinfo($path, PATHINFO_FILENAME);
 
@@ -175,24 +168,28 @@ class UploadedFile extends BaseContext
             $film = $film->toArray();
             $options['movieName'] = $film['SKHN_NM'];
         } catch (\Exception $e) {
-            $this->log('fail in getting movie name. message:' . $e->getMessage());
+            $this->logger->log('fail in getting movie name. message:' . $e->getMessage());
         }
 
         // メディアオブジェクト生成
         $media = \Mms\Lib\Models\Media::createFromOptions($options);
 
-        $this->log('$media: ' . print_r($media, true));
-        $this->log("\n--------------------\n" . 'end function: ' . __FUNCTION__ . "\n--------------------\n");
+        $this->logger->log('$media: ' . print_r($media, true));
+        $this->logger->log("\n--------------------\n" . 'end function: ' . __FUNCTION__ . "\n--------------------\n");
 
         return $media;
     }
 
     /**
      * DBへメディアを登録する
+     *
+     * @return string
      */
     private function createMedia()
     {
-        $this->log("\n--------------------\n" . 'start function: ' . __FUNCTION__ . "\n--------------------\n");
+        $this->logger->log("\n--------------------\n" . 'start function: ' . __FUNCTION__ . "\n--------------------\n");
+
+        $mediaId = null;
 
         try {
             $media = $this->path2media(self::$filePath);
@@ -201,253 +198,76 @@ class UploadedFile extends BaseContext
                 "INSERT INTO media (id, code, mcode, category_id, version, size, extension, user_id, movie_name, playtime_string, playtime_seconds, job_id, job_state, job_start_at, job_end_at, start_at, end_at, created_at, updated_at) VALUES ('%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', datetime('now', 'localtime'), datetime('now', 'localtime'))",
                 $media->toArray()
             );
-            $this->log('$query:' . $query);
+            $this->logger->log('$query:' . $query);
             $this->db->exec($query);
 
-            self::$mediaId = $media->getId();
+            $mediaId = $media->getId();
 
-            $this->log('media has been created. mediaId: ' . self::$mediaId);
+            $this->logger->log('media has been created. mediaId: ' . $mediaId);
         } catch (\Exception $e) {
-            $this->log('fail in creating media: ' . $e->getMessage());
+            $this->logger->log('fail in creating media: ' . $e->getMessage());
             throw $e;
         }
 
-        $this->log("\n--------------------\n" . 'end function: ' . __FUNCTION__ . "\n--------------------\n");
+        $this->logger->log("\n--------------------\n" . 'end function: ' . __FUNCTION__ . "\n--------------------\n");
+
+        return $mediaId;
     }
 
     /**
      * 資産をインジェストする
      *
      * @see http://msdn.microsoft.com/ja-jp/library/jj129593.aspx
-     * @return boolean
-     * @throws \Exception
+     * @return array
      */
-    private function ingestAsset()
+    private function ingestAsset($mediaId)
     {
-        $this->log("\n--------------------\n" . 'start function: ' . __FUNCTION__ . "\n--------------------\n");
-
-        $filepath = self::$filePath;
-        if (is_null($filepath)) {
-            return false;
-        }
+        $this->logger->log("\n--------------------\n" . 'start function: ' . __FUNCTION__ . "\n--------------------\n");
+        $this->logger->log('args: ' . print_r(func_get_args(), true));
 
         $asset = null;
-        $isUploaded = false;
+        $assetId = null;
+        $isCompleted = false;
 
         try {
-            $mediaServicesWrapper = $this->getMediaServicesWrapper();
+            $mediaServicesWrapper = $this->azureContext->getMediaServicesWrapper();
 
             // 資産を作成する
             $asset = new Asset(Asset::OPTIONS_NONE);
-            $asset->setName(self::$mediaId);
+            $asset->setName($mediaId);
             $asset = $mediaServicesWrapper->createAsset($asset);
+            $assetId = $asset->getId();
 
-            $this->log('asset has been created. asset:' . $asset->getId());
-            // この後の処理中いつでも削除できるように、ここですぐにセット
-            self::$inputAsset = $asset;
+            $this->logger->log('asset has been created. asset:' . $assetId);
         } catch (\Exception $e) {
-            $this->log('createAsset throw exception. message:' . $e->getMessage());
-            throw $e;
+            $this->logger->log('createAsset throw exception. message:' . $e->getMessage());
         }
 
         try {
             // ファイルのアップロードを実行する
-            $extension = pathinfo($filepath, PATHINFO_EXTENSION);
-            $fileName = sprintf('%s.%s', self::$mediaId, $extension);
-            $this->upload2storage(basename($asset->getUri()), $fileName, $filepath);
+            $extension = pathinfo(self::$filePath, PATHINFO_EXTENSION);
+            $fileName = sprintf('%s.%s', $mediaId, $extension);
+            $this->upload2storage(basename($asset->getUri()), $fileName, self::$filePath);
 
             $isUploaded = true;
         } catch (\Exception $e) {
-            $this->log('upload2storage throw exception. message:' . $e->getMessage());
-            throw $e;
+            $this->logger->log('upload2storage throw exception. message:' . $e->getMessage());
         }
 
         try {
             // ファイル メタデータの生成
             $mediaServicesWrapper->createFileInfos($asset);
 
-            $this->log('inputAsset has been prepared. asset:' . $asset->getId());
+            // ここまできて初めて、アセットの準備が完了したことになる
+            $isCompleted = true;
+            $this->logger->log('inputAsset has been prepared completely. asset:' . $assetId);
         } catch (\Exception $e) {
-            $this->log('createFileInfos throw exception. message:' . $e->getMessage());
-            throw $e;
+            $this->logger->log('createFileInfos throw exception. message:' . $e->getMessage());
         }
 
-        $this->log("\n--------------------\n" . 'end function: ' . __FUNCTION__ . "\n--------------------\n");
+        $this->logger->log("\n--------------------\n" . 'end function: ' . __FUNCTION__ . "\n--------------------\n");
 
-        return true;
-    }
-
-    /**
-     * jobを作成する
-     *
-     * @param \WindowsAzure\MediaServices\Models\Asset
-     * @return \WindowsAzure\MediaServices\Models\Job
-     *
-     */
-    private function createJob($inputAsset)
-    {
-        $this->log("\n--------------------\n" . 'start function: ' . __FUNCTION__ . "\n--------------------\n");
-
-        if (is_null($inputAsset)) {
-            return null;
-        }
-
-        $job = null;
-
-        $mediaServicesWrapper = $this->getMediaServicesWrapper();
-
-        $tasks = $this->prepareTasks();
-
-        $job = new Job();
-        $job->setName('job_for_' . self::$mediaId);
-        $job = $mediaServicesWrapper->createJob($job, array($inputAsset), $tasks);
-
-        $this->log('job has been created. job:' . $job->getId());
-
-        $this->log("\n--------------------\n" . 'end function: ' . __FUNCTION__ . "\n--------------------\n");
-
-        return $job;
-    }
-
-    /**
-     * ジョブにセットするタスクリストを用意する
-     *
-     * ジョブを作成する上で最も肝になる部分
-     * 更新する場合
-     * タスクの順序や、JobInputAssetとJobOutputAssetのキーナンバーに、気をつけること
-     *
-     * @see http://msdn.microsoft.com/ja-jp/library/dn629573.aspx
-     * @return multitype:\WindowsAzure\MediaServices\Models\Task
-     */
-    private function prepareTasks()
-    {
-        $this->log("\n--------------------\n" . 'start function: ' . __FUNCTION__ . "\n--------------------\n");
-
-        $tasks = array();
-        $mediaServicesWrapper = $this->getMediaServicesWrapper();
-
-        // adaptive bitrate mp4
-        $mediaProcessor = $mediaServicesWrapper->getLatestMediaProcessor('Windows Azure Media Encoder');
-        $taskBody = $this->getMediaServicesTaskBody(
-            'JobInputAsset(0)',
-            'JobOutputAsset(0)',
-            Asset::OPTIONS_NONE,
-            \Mms\Lib\Models\Task::NAME_ADAPTIVE_BITRATE_MP4
-        );
-        $task = new Task($taskBody, $mediaProcessor->getId(), TaskOptions::NONE);
-        $task->setConfiguration('H264 Adaptive Bitrate MP4 Set 1080p');
-        $tasks[] = $task;
-
-        $this->log('tasks has been prepared. tasks count:' . count($tasks));
-
-        $this->log("\n--------------------\n" . 'end function: ' . __FUNCTION__ . "\n--------------------\n");
-
-        return $tasks;
-    }
-
-    /**
-     * ジョブにセットするタスクリストを用意する
-     *
-     * ジョブを作成する上で最も肝になる部分
-     * 更新する場合
-     * タスクの順序や、JobInputAssetとJobOutputAssetのキーナンバーに、気をつけること
-     *
-     * 1. ダイナミックパッケージング
-     * 2. 入力ファイルを一連の複数ビットレート MP4 にエンコードする。
-     * 3. 複数ビットレート MP4をスムーズストリームにパッケージする。
-     * 4. スムーズ ストリームを暗号化する。
-     * 5. 暗号化されたスムーズ ストリームをHLSにパッケージしてPlayReadyで暗号化されたHLSを取得する。
-     *
-     * @see http://msdn.microsoft.com/ja-jp/library/dn629573.aspx
-     * @return multitype:\WindowsAzure\MediaServices\Models\Task
-     */
-    private function prepareTasks2()
-    {
-      $this->log("\n--------------------\n" . 'start function: ' . __FUNCTION__ . "\n--------------------\n");
-
-      $tasks = array();
-      $mediaServicesWrapper = $this->getMediaServicesWrapper();
-
-       // adaptive bitrate mp4
-      $mediaProcessor = $mediaServicesWrapper->getLatestMediaProcessor('Windows Azure Media Encoder');
-      $taskBody = $this->getMediaServicesTaskBody(
-          'JobInputAsset(0)',
-          'JobOutputAsset(0)',
-          Asset::OPTIONS_NONE,
-          \Mms\Lib\Models\Task::NAME_ADAPTIVE_BITRATE_MP4
-      );
-      $this->log('$taskBody: ' . $taskBody);
-      $task = new Task($taskBody, $mediaProcessor->getId(), TaskOptions::NONE);
-      $task->setConfiguration('H264 Adaptive Bitrate MP4 Set 720p');
-      $tasks[] = $task;
-
-      // smooth streaming
-      $mediaProcessor = $mediaServicesWrapper->getLatestMediaProcessor('Windows Azure Media Packager');
-      $taskBody = $this->getMediaServicesTaskBody(
-          'JobOutputAsset(0)',
-          'JobOutputAsset(1)',
-          Asset::OPTIONS_NONE,
-          \Mms\Lib\Models\Task::NAME_SMOOTH_STREAMING
-      );
-      $this->log('$taskBody: ' . $taskBody);
-      $task = new Task($taskBody, $mediaProcessor->getId(), TaskOptions::NONE);
-      $configurationFile  = dirname(__FILE__) . '/config/MediaPackager_MP4ToSmooth.xml';
-      $task->setConfiguration(file_get_contents($configurationFile));
-      $tasks[] = $task;
-
-      // http_live_streaming
-      $mediaProcessor = $mediaServicesWrapper->getLatestMediaProcessor('Windows Azure Media Packager');
-      $taskBody = $this->getMediaServicesTaskBody(
-          'JobOutputAsset(1)',
-          'JobOutputAsset(2)',
-          Asset::OPTIONS_NONE,
-          \Mms\Lib\Models\Task::NAME_HLS
-      );
-//         $task = new Task($taskBody, $mediaProcessor->getId(), TaskOptions::PROTECTED_CONFIGURATION);
-      $task = new Task($taskBody, $mediaProcessor->getId(), TaskOptions::NONE);
-      $configurationFile  = dirname(__FILE__) . '/config/MediaPackager_SmoothToHLS.xml';
-      $task->setConfiguration(file_get_contents($configurationFile));
-      $tasks[] = $task;
-
-      // PlayReady
-      $mediaProcessor = $mediaServicesWrapper->getLatestMediaProcessor('Windows Azure Media Encryptor');
-      $taskBody = $this->getMediaServicesTaskBody(
-          'JobOutputAsset(1)',
-          'JobOutputAsset(3)',
-          Asset::OPTIONS_COMMON_ENCRYPTION_PROTECTED,
-          \Mms\Lib\Models\Task::NAME_SMOOTH_STREAMING_PLAYREADY
-      );
-      $this->log('$taskBody: ' . $taskBody);
-      // テスト段階では、TaskOptions::PROTECTED_CONFIGURATIONだとkeyIdを設定しなさい、と怒られる
-//         $task = new Task($taskBody, $mediaProcessor->getId(), TaskOptions::PROTECTED_CONFIGURATION);
-      $task = new Task($taskBody, $mediaProcessor->getId(), TaskOptions::NONE);
-      $configurationFile  = dirname(__FILE__) . '/config/MediaEncryptor_PlayReadyProtection.xml';
-      $task->setConfiguration(file_get_contents($configurationFile));
-      $tasks[] = $task;
-
-      // http_live_streaming_playready
-      $mediaProcessor = $mediaServicesWrapper->getLatestMediaProcessor('Windows Azure Media Packager');
-      $taskBody = $this->getMediaServicesTaskBody(
-          'JobOutputAsset(3)',
-          'JobOutputAsset(4)',
-          Asset::OPTIONS_COMMON_ENCRYPTION_PROTECTED,
-          \Mms\Lib\Models\Task::NAME_HLS_PLAYREADY
-      );
-//         $task = new Task($taskBody, $mediaProcessor->getId(), TaskOptions::PROTECTED_CONFIGURATION);
-      $task = new Task($taskBody, $mediaProcessor->getId(), TaskOptions::NONE);
-      $configurationFile  = dirname(__FILE__) . '/config/MediaPackager_SmoothToHLS.xml';
-      $task->setConfiguration(file_get_contents($configurationFile));
-      $tasks[] = $task;
-
-      $this->log('tasks has been prepared. tasks count: ' . count($tasks));
-
-      $this->log("\n--------------------\n" . 'end function: ' . __FUNCTION__ . "\n--------------------\n");
-
-      return $tasks;
-    }
-
-    private function getMediaServicesTaskBody($inputAsset, $outputAsset, $outputAssetOptions, $outputAssetName) {
-        return '<?xml version="1.0" encoding="utf-8"?><taskBody><inputAsset>' . $inputAsset . '</inputAsset><outputAsset assetCreationOptions="' . $outputAssetOptions . '" assetName="' . $outputAssetName . '">' . $outputAsset . '</outputAsset></taskBody>';
+        return [$assetId, $isCompleted];
     }
 
     /**
@@ -462,10 +282,10 @@ class UploadedFile extends BaseContext
      */
     private function upload2storage($containerName, $blobName, $path)
     {
-        $this->log("\n--------------------\n" . 'start function: ' . __FUNCTION__ . "\n--------------------\n");
-        $this->log('args: ' . print_r(func_get_args(), true));
+        $this->logger->log("\n--------------------\n" . 'start function: ' . __FUNCTION__ . "\n--------------------\n");
+        $this->logger->log('args: ' . print_r(func_get_args(), true));
 
-        $blobRestProxy = $this->getBlobServicesWrapper();
+        $blobRestProxy = $this->azureContext->getBlobServicesWrapper();
 
         $content = fopen($path, 'rb');
         $counter = 1;
@@ -480,14 +300,14 @@ class UploadedFile extends BaseContext
             $data = fread($content, self::CHUNK_SIZE);
             $this->createBlobBlock($containerName, $blobName, base64_encode($blockId), $data);
 
-            $this->log('BlobBlock has been created. counter: ' . $counter);
+            $this->logger->log('BlobBlock has been created. counter: ' . $counter);
             $counter++;
         }
         fclose($content);
         $result = $blobRestProxy->commitBlobBlocks($containerName, $blobName, $blockIds);
 
-        $this->log('BlobBlocks has been commit. result: ' . print_r($result, true));
-        $this->log("\n--------------------\n" . 'end function: ' . __FUNCTION__ . "\n--------------------\n");
+        $this->logger->log('BlobBlocks has been commit. result: ' . print_r($result, true));
+        $this->logger->log("\n--------------------\n" . 'end function: ' . __FUNCTION__ . "\n--------------------\n");
     }
 
     /**
@@ -506,14 +326,14 @@ class UploadedFile extends BaseContext
      * @see http://msdn.microsoft.com/en-us/library/windowsazure/dd135726.aspx
      */
     private function createBlobBlock($container, $blob, $blockId, $content, $options = null) {
-        $this->log("\n--------------------\n" . 'start function: ' . __FUNCTION__ . "\n--------------------\n");
-        $this->log('$container: ' . $container);
-        $this->log('$blob: ' . $blob);
-        $this->log('$blockId: ' . $blockId);
-        $this->log('$content length: ' . strlen($content));
-        $this->log('$options: ' . print_r($options, true));
+        $this->logger->log("\n--------------------\n" . 'start function: ' . __FUNCTION__ . "\n--------------------\n");
+        $this->logger->log('$container: ' . $container);
+        $this->logger->log('$blob: ' . $blob);
+        $this->logger->log('$blockId: ' . $blockId);
+        $this->logger->log('$content length: ' . strlen($content));
+        $this->logger->log('$options: ' . print_r($options, true));
 
-        $blobRestProxy = $this->getBlobServicesWrapper();
+        $blobRestProxy = $this->azureContext->getBlobServicesWrapper();
         $url = sprintf('%s/%s/%s',
                         $blobRestProxy->getUri(),
                         $container,
@@ -536,7 +356,7 @@ class UploadedFile extends BaseContext
 
         $url .= '?' . http_build_query($queryParams);
 
-        $authSchema = $this->getBlobAuthenticationScheme();
+        $authSchema = $this->azureContext->getBlobAuthenticationScheme();
         $sharedKey = $authSchema->getAuthorizationHeader($headers, $url, $queryParams, $httpMethod);
         $headers['authorization'] = $sharedKey;
 
@@ -586,7 +406,7 @@ class UploadedFile extends BaseContext
         curl_setopt_array($ch, $options);
 
         $result = curl_exec($ch);
-        $this->debug('result of creating blob block: ' . print_r($result, true));
+        $this->logger->debug('result of creating blob block: ' . print_r($result, true));
         fclose($fp);
 
         // 一時ファイルを削除
@@ -594,11 +414,11 @@ class UploadedFile extends BaseContext
 
         if (!curl_errno($ch)) {
             $info = curl_getinfo($ch);
-            $this->log($info);
+            $this->logger->log($info);
 
             if ($info['http_code'] != '201') {
                 $object = simplexml_load_string($result);
-                $this->log($object);
+                $this->logger->log($object);
 
                 $e = new \Exception('upload error: ' . $object->Code . ' ' . $object->Message);
                 curl_close($ch);
@@ -612,36 +432,7 @@ class UploadedFile extends BaseContext
             throw $e;
         }
 
-        $this->log("\n--------------------\n" . 'end function: ' . __FUNCTION__ . "\n--------------------\n");
-    }
-
-    /**
-     * DBのメディアをジョブ情報で更新する
-     *
-     * @param string $jobId
-     * @param string $jobState
-     * @return none
-     */
-    private function updateMedia($jobId, $jobState)
-    {
-        $this->log("\n--------------------\n" . 'start function: ' . __FUNCTION__ . "\n--------------------\n");
-        $this->log('args: ' . print_r(func_get_args(), true));
-
-        if (is_null($jobId) || is_null($jobState)) {
-            $e = new \Exception('job id & job state are required.');
-            $this->log('updateMedia throw exception. message:' . $e->getMessage());
-            throw $e;
-        }
-
-        // ジョブ情報をDBに登録
-        $mediaId = self::$mediaId;
-        $query = "UPDATE media"
-               . " SET job_id = '{$jobId}', job_state = '{$jobState}', updated_at = datetime('now', 'localtime')"
-               . " WHERE id = '{$mediaId}'";
-        $this->log('$query:' . $query);
-        $this->db->exec($query);
-
-        $this->log("\n--------------------\n" . 'end function: ' . __FUNCTION__ . "\n--------------------\n");
+        $this->logger->log("\n--------------------\n" . 'end function: ' . __FUNCTION__ . "\n--------------------\n");
     }
 }
 
