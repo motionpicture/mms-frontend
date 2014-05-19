@@ -293,55 +293,50 @@ $app->get('/media/:id/download', function ($id) use ($app) {
     $app->log->debug($id);
 
     try {
-        $query = "SELECT * FROM media WHERE id = '{$id}'";
+        $query = "SELECT id, asset_id, extension FROM media WHERE id = '{$id}'";
         $statement = $app->db->query($query);
         $media = $statement->fetch();
 
-        if (isset($media['id']) && $media['job_id']) {
-            $mediaServicesWrapper = $app->getMediaServicesWrapper();
+        $mediaServicesWrapper = $app->getMediaServicesWrapper();
 
-            // 読み取りアクセス許可を持つAccessPolicyの作成
-            $accessPolicy = new WindowsAzure\MediaServices\Models\AccessPolicy('DownloadPolicy');
-            $accessPolicy->setDurationInMinutes(10);
-            $accessPolicy->setPermissions(WindowsAzure\MediaServices\Models\AccessPolicy::PERMISSIONS_READ);
-            $accessPolicy = $mediaServicesWrapper->createAccessPolicy($accessPolicy);
+        // 読み取りアクセス許可を持つAccessPolicyの作成
+        $accessPolicy = new WindowsAzure\MediaServices\Models\AccessPolicy('DownloadPolicy');
+        $accessPolicy->setDurationInMinutes(10); // 10分間有効
+        $accessPolicy->setPermissions(WindowsAzure\MediaServices\Models\AccessPolicy::PERMISSIONS_READ);
+        $accessPolicy = $mediaServicesWrapper->createAccessPolicy($accessPolicy);
 
-            // ジョブのアセットを取得
-            $assets = $mediaServicesWrapper->getJobInputMediaAssets($media['job_id']);
+        // アセットを取得
+        $asset = $mediaServicesWrapper->getAsset($media['asset_id']);
+        $app->log->debug('$asset:' . print_r($asset, true));
 
-            $app->log->debug(print_r($assets, true));
+        // ダウンロードURLの作成
+        $locator = new WindowsAzure\MediaServices\Models\Locator(
+            $asset,
+            $accessPolicy,
+            WindowsAzure\MediaServices\Models\Locator::TYPE_SAS
+        );
+        $locator->setName('DownloadLocator_' . $asset->getId());
+        $locator->setStartTime(new \DateTime('now -5 minutes'));
+        $locator = $mediaServicesWrapper->createLocator($locator);
 
-            $asset = $assets[0];
+        $app->log->debug(print_r($locator, true));
 
-            // ダウンロードURLの作成
-            $locator = new WindowsAzure\MediaServices\Models\Locator(
-                $asset,
-                $accessPolicy,
-                WindowsAzure\MediaServices\Models\Locator::TYPE_SAS
-            );
-            $locator->setName('DownloadLocator_' . $asset->getId());
-            $locator->setStartTime(new \DateTime('now -5 minutes'));
-            $locator = $mediaServicesWrapper->createLocator($locator);
+        $fileName = sprintf('%s.%s', $media['id'], $media['extension']);
+        $path = sprintf('%s/%s%s',
+                        $locator->getBaseUri(),
+                        $fileName,
+                        $locator->getContentAccessComponent());
 
-            $app->log->debug(print_r($locator, true));
-
-            $fileName = sprintf('%s.%s', $media['id'], $media['extension']);
-            $path = sprintf('%s/%s%s',
-                            $locator->getBaseUri(),
-                            $fileName,
-                            $locator->getContentAccessComponent());
-
-            header('Content-Disposition: attachment; filename="' . $fileName . '"');
-            header('Content-Type: application/octet-stream');
-            if (!readfile($path)) {
-                throw(new Exception("Cannot read the file(".$path.")"));
-            }
-
-            // ロケーター削除
-            $mediaServicesWrapper->deleteLocator($locator);
-
-            exit;
+        header('Content-Disposition: attachment; filename="' . $fileName . '"');
+        header('Content-Type: application/octet-stream');
+        if (!readfile($path)) {
+            throw(new Exception("Cannot read the file(".$path.")"));
         }
+
+        // ロケーター削除
+        $mediaServicesWrapper->deleteLocator($locator);
+
+        exit;
     } catch (Exception $e) {
         $app->log->debug(print_r($e, true));
         throw $e;
@@ -499,6 +494,47 @@ $app->post('/media/:id/delete', function ($id) use ($app) {
     ]);
     return;
 })->name('media_delete');
+
+/**
+ * メディア再エンコード
+ */
+$app->post('/media/:id/reencode', function ($id) use ($app) {
+    $app->log->debug('$id: ' . $id);
+
+    $isSuccess = false;
+    $message = '予期せぬエラー';
+
+    try {
+        // メディアを取得
+        $query = "SELECT * FROM media WHERE id = '{$id}'";
+        $statement = $app->db->query($query);
+        $media = $statement->fetch();
+
+        if (isset($media['id'])) {
+            require_once dirname(__FILE__) . '/../bin/Contexts/PostEncodeMedia.php';
+            $userSettings = [
+                'mode'    => $app->getMode(),
+                'logFile' => $app->logFile
+            ];
+            $postEncodeMedia = new \Mms\Bin\Contexts\PostEncodeMedia(
+                $userSettings,
+                $media['id'],
+                $media['asset_id'],
+                $media['job_id']
+            );
+            $isSuccess = $postEncodeMedia->reencode();
+            $message = '';
+        }
+    } catch (Exception $e) {
+        $message = $e->getMessage();
+    }
+
+    echo json_encode([
+        'success' => $isSuccess,
+        'message' => $message
+    ]);
+    return;
+})->name('media_reencode');
 
 /**
  * アカウント編集

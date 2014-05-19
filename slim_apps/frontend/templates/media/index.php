@@ -62,14 +62,25 @@ table td {
                         <td><?php echo $media['user_id'] ?></td>
                         <td><?php echo ($media['job_id'] != '') ? $jobState::toString($media['job_state']) : 'ジョブ未登録' ?></td>
                         <td><?php echo $media['updated_at'] ?></td>
+                        <?php if ($app->config('debug')) { ?>
+                        <td><?php echo $media['asset_id'] ?></td>
+                        <td><?php echo $media['job_id'] ?></td>
+                        <?php } ?>
                         <td>
                             <span class="media-id hide"><?php echo $media['id'] ?></span>
+                            <span class="asset-id hide"><?php echo $media['asset_id'] ?></span>
+                            <span class="job-id hide"><?php echo $media['job_id'] ?></span>
                             <span class="media-code hide"><?php echo $media['code'] ?></span>
                             <span class="media-movie-name hide"><?php echo $media['movie_name'] ?></span>
                             <a href="/media/<?php echo $media['code'] ?>" class="btn btn-default"><span class="ladda-label">詳細</span></a>
                             <a href="javascript:void(0)" class="update-media btn btn-primary ladda-button" data-style="zoom-in"><span class="ladda-label">更新</span></a>
                             <?php if ($media['job_id']) { ?>
                             <button type="button" class="btn btn-default" onclick="location.href='/media/<?php echo $media['id'] ?>/download'">ダウンロード</button>
+
+                            <?php if ($app->config('debug')) { ?>
+                            <a href="javascript:void(0)" class="reencode-media btn btn-primary ladda-button" data-style="zoom-in"><span class="ladda-label">再エンコード</span></a>
+                            <?php } ?>
+
                             <?php } ?>
                         </td>
                     </tr>
@@ -81,8 +92,8 @@ table td {
         <ul class="pager">
             <?php $previous = '/medias?' . http_build_query(array_merge($_GET, array('page' => $searchConditions['page'] - 1))); ?>
             <?php $next = '/medias?' . http_build_query(array_merge($_GET, array('page' => $searchConditions['page'] + 1))); ?>
-            <li class="previous<?php if ($searchConditions['page'] < 2) { ?> disabled<?php } ?>"><a href="<?php echo $previous ?>">&larr; Older</a></li>
-            <li class="next<?php if (count($medias) <= $perPage) { ?> disabled<?php } ?>"><a href="<?php echo $next ?>">Newer &rarr;</a></li>
+            <li class="previous<?php if ($searchConditions['page'] < 2) { ?> disabled<?php } ?>"><a href="<?php echo $previous ?>">&larr; 前へ</a></li>
+            <li class="next<?php if (count($medias) <= $perPage) { ?> disabled<?php } ?>"><a href="<?php echo $next ?>">次へ &rarr;</a></li>
         </ul>
     </div>
 </div>

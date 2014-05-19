@@ -1,7 +1,7 @@
 <?php
 
 // 環境取得
-$modeFile = dirname(__FILE__) . '/../mode.php';
+$modeFile = __DIR__ . '/../mode.php';
 if (false === is_file($modeFile)) {
     exit('The application "mode file" does not exist.');
 }
@@ -12,17 +12,24 @@ if (empty($mode)) {
 
 $userSettings = [
     'mode'    => $mode,
-    'logFile' => dirname(__FILE__) . '/../log/bin/init_db/init_db_' . $mode . '_' . date('Ymd') . '.log'
+    'logFile' => __DIR__ . '/../log/bin/init_db/init_db_' . $mode . '_' . date('Ymd') . '.log'
 ];
 
-require_once('BaseContext.php');
+require_once __DIR__ . '/BaseContext.php';
 $context = new \Mms\Bin\BaseContext($userSettings);
 
+$context->logger->log("\n////////////////////////////////////////////////////////////\n////////////////////////////////////////////////////////////\n");
+$context->logger->log(date('[Y/m/d H:i:s]') . ' start init_db');
+
 try {
-    $query = file_get_contents(dirname(__FILE__) . '/../db/initialize.sql');
+    $query = file_get_contents(__DIR__ . '/../db/initialize.sql');
+    $context->logger->log('$query:' . $query);
     $context->db->exec($query);
 } catch (Exception $e) {
-    $context->logger->log($e->getMessage());
+    $context->logger->log('init_db throw exception. message:' . $e->getMessage());
 }
+
+$context->logger->log(date('[Y/m/d H:i:s]') . ' end init_db');
+$context->logger->log("\n////////////////////////////////////////////////////////////\n////////////////////////////////////////////////////////////\n");
 
 ?>

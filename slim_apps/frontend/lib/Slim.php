@@ -15,8 +15,8 @@ use WindowsAzure\Common\Internal\MediaServicesSettings;
 class Slim extends \Slim\Slim
 {
     public $db;
-    public $azureConfig;
-    private static $mediaServicesWrapper = null;
+    public $logFile;
+    public $azureContext;
 
     /**
      * Constructor
@@ -44,15 +44,14 @@ class Slim extends \Slim\Slim
         }
 
         // ログファイル指定
-        $userSettings['log.writer'] = new \Slim\LogWriter(fopen(dirname(__FILE__) . '/../../../log/mms_slim_' . $mode . '_' . date('Ymd') . '.log', 'a+'));
+        $this->logFile = dirname(__FILE__) . '/../../../log/mms_slim_' . $mode . '_' . date('Ymd') . '.log';
+        $userSettings['log.writer'] = new \Slim\LogWriter(fopen($this->logFile, 'a+'));
 
         parent::__construct($userSettings);
 
         $this->db = \Mms\Lib\PDO::getInstance($userSettings['mode']);
 
-        // azure設定値
-        $azureIniArray = parse_ini_file(dirname(__FILE__) . '/../../../config/azure.ini', true);
-        $this->azureConfig = $azureIniArray[$userSettings['mode']];
+        $this->azureContext = new \Mms\Lib\AzureContext($userSettings['mode']);
 
         $this->tryCreateUser();
 
@@ -87,18 +86,7 @@ class Slim extends \Slim\Slim
      */
     public function getMediaServicesWrapper()
     {
-        if (!isset(self::$mediaServicesWrapper)) {
-            // メディアサービス
-            $settings = new MediaServicesSettings(
-                $this->azureConfig['media_service_account_name'],
-                $this->azureConfig['media_service_account_key'],
-                \WindowsAzure\Common\Internal\Resources::MEDIA_SERVICES_URL,
-                \WindowsAzure\Common\Internal\Resources::MEDIA_SERVICES_OAUTH_URL
-            );
-            self::$mediaServicesWrapper = \WindowsAzure\Common\ServicesBuilder::getInstance()->createMediaServicesService($settings);
-        }
-
-        return self::$mediaServicesWrapper;
+        return $this->azureContext->getMediaServicesWrapper();
     }
 }
 ?>

@@ -1,7 +1,7 @@
 <?php
-namespace Mms\Bin;
+namespace Mms\Bin\Contexts;
 
-require_once('BaseContext.php');
+require_once __DIR__ . '/../BaseContext.php';
 
 use WindowsAzure\MediaServices\Models\Job;
 use WindowsAzure\MediaServices\Models\AccessPolicy;
@@ -11,7 +11,13 @@ use WindowsAzure\MediaServices\Models\Locator;
 set_time_limit(0);
 ini_set('memory_limit', '1024M');
 
-class InEncodeMedias extends BaseContext
+/**
+ * メディアサービスにてエンコード中のメディアという文脈
+ *
+ * @package   Mms\Bin\Contexts
+ * @author    Tetsu Yamazaki <yamazaki@motionpicture.jp>
+ */
+class InEncodeMedias extends \Mms\Bin\BaseContext
 {
     function __construct($userSettings)
     {
@@ -23,6 +29,8 @@ class InEncodeMedias extends BaseContext
      */
     public function checkJobState()
     {
+        $this->logger->log("\n--------------------\n" . 'start function: ' . __FUNCTION__ . "\n--------------------\n");
+
         $medias = [];
 
         try {
@@ -54,6 +62,8 @@ class InEncodeMedias extends BaseContext
                 $this->reportError($message);
             }
         }
+
+        $this->logger->log("\n--------------------\n" . 'end function: ' . __FUNCTION__ . "\n--------------------\n");
     }
 
     /**
@@ -251,7 +261,7 @@ class InEncodeMedias extends BaseContext
 
         // 送信
         if ($email) {
-            $subject = 'ストリーミングURLが発行さされました';
+            $subject = 'ストリーミングURLが発行されました';
             $message = 'http://pmmedia.cloudapp.net/media/' . $mediaCode;
             $headers = 'From: webmaster@pmmedia.cloudapp.net' . "\r\n"
                      . 'Reply-To: webmaster@pmmedia.cloudapp.net';

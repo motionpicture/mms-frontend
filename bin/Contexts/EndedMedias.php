@@ -1,9 +1,15 @@
 <?php
-namespace Mms\Bin;
+namespace Mms\Bin\Contexts;
 
-require_once('BaseContext.php');
+require_once __DIR__ . '/../BaseContext.php';
 
-class EndedMedias extends BaseContext
+/**
+ * 公開期間の終了したメディアという文脈
+ *
+ * @package   Mms\Bin\Contexts
+ * @author    Tetsu Yamazaki <yamazaki@motionpicture.jp>
+ */
+class EndedMedias extends \Mms\Bin\BaseContext
 {
     /**
      * __construct
@@ -15,6 +21,8 @@ class EndedMedias extends BaseContext
 
     public function delete()
     {
+        $this->logger->log("\n--------------------\n" . 'start function: ' . __FUNCTION__ . "\n--------------------\n");
+
         // 公開終了日時の過ぎたメディアを取得
         $mediaIds = [];
         $jobIds = [];
@@ -42,6 +50,8 @@ class EndedMedias extends BaseContext
                 $this->deleteAssets($jobId);
             }
         }
+
+        $this->logger->log("\n--------------------\n" . 'end function: ' . __FUNCTION__ . "\n--------------------\n");
     }
 
     /**
