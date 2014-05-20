@@ -180,16 +180,17 @@ $app->get('/medias', function () use ($app) {
                            . " HAVING m3.code = m1.code";
         $query .= ", ({$subQuery4versions}) AS versions";
         $query .= " FROM media AS m1"
-                . ' INNER JOIN category ON m1.category_id = category.id'
-                . ' WHERE m1.id IS NOT NULL';
+                . " INNER JOIN category ON m1.category_id = category.id"
+                . " WHERE m1.deleted_at == ''";
 
         // 最新バージョンのメディアのみ取得
-        $query .= " AND m1.version = (SELECT MAX(m2.version) FROM media AS m2 WHERE m1.code =  m2.code)";
+        $query .= " AND m1.version = (SELECT MAX(m2.version) FROM media AS m2 WHERE m1.code =  m2.code AND m2.deleted_at == '')";
 
         // 検索条件を追加
         if (isset($_GET['word']) && $_GET['word'] != '') {
             $searchConditions['word'] = $_GET['word'];
-            $query .= sprintf(' AND m1.id LIKE \'%%%s%%\'', $searchConditions['word']);
+            $quotedWord = $app->db->quote('%' . $searchConditions['word'] . '%');
+            $query .=  " AND (m1.id || m1.movie_name || category_name) LIKE {$quotedWord}";
         }
 
         if (isset($_GET['job_state']) && count($_GET['job_state']) > 0) {
@@ -251,7 +252,10 @@ $app->get('/media/:code', function ($code) use ($app) {
     $medias = [];
 
     try {
-        $query = "SELECT media.*, category.name AS category_name FROM media INNER JOIN category ON media.category_id = category.id WHERE media.code = '{$code}' ORDER BY media.version DESC";
+        $query = "SELECT media.*, category.name AS category_name FROM media"
+               . " INNER JOIN category ON media.category_id = category.id"
+               . " WHERE media.code = '{$code}' AND media.deleted_at == ''"
+               . " ORDER BY media.version DESC";
 
         $statement = $app->db->query($query);
         $medias = $statement->fetchAll();
@@ -429,64 +433,23 @@ $app->post('/media/:id/delete', function ($id) use ($app) {
 
     $isSuccess = false;
     $message = '予期せぬエラー';
-    $count4deleteMedia = 0;
-    $count4deleteTask = 0;
+    $count4updateMedia = 0;
 
-    // メディアを取得
-    $query = "SELECT * FROM media WHERE id = '{$id}'";
-    $statement = $app->db->query($query);
-    $media = $statement->fetch();
+    try {
+        $query = "UPDATE media SET updated_at = datetime('now'), deleted_at = datetime('now') WHERE id = '{$id}'";
+        $app->log->debug('$query:' . $query);
+        $count4updateMedia = $app->db->exec($query);
 
-    if (isset($media['id'])) {
-        // トランザクションの開始
-        $app->db->beginTransaction();
-        try {
-            $query = "DELETE FROM media WHERE id = '{$id}'";
-            $app->log->debug('$query:' . $query);
-            $count4deleteMedia = $app->db->exec($query);
-
-            $query = "DELETE FROM task WHERE media_id = '{$id}'";
-            $app->log->debug('$query:' . $query);
-            $count4deleteTask = $app->db->exec($query);
-
-            $app->db->commit();
+        if ($count4updateMedia > 0) {
             $isSuccess = true;
             $message = '';
-        } catch (Exception $e) {
-            $app->log->debug(print_r($e, true));
-            $app->db->rollBack();
-            $message = $e->getMessage();
         }
-
-        // ジョブがあればアセットも削除
-        if ($isSuccess) {
-            try {
-                if ($media['job_id']) {
-                    $mediaServicesWrapper = $app->getMediaServicesWrapper();
-
-                    // ジョブのアセットを取得
-                    $inputAssets = $mediaServicesWrapper->getJobInputMediaAssets($media['job_id']);
-                    $outputAssets = $mediaServicesWrapper->getJobOutputMediaAssets($media['job_id']);
-
-                    $app->log->debug('$inputAssets:' . print_r($inputAssets, true));
-                    $app->log->debug('$outputAssets:' . print_r($outputAssets, true));
-
-                    // アセット削除
-                    foreach ($inputAssets as $asset) {
-                        $mediaServicesWrapper->deleteAsset($asset);
-                    }
-                    foreach ($outputAssets as $asset) {
-                        $mediaServicesWrapper->deleteAsset($asset);
-                    }
-                }
-            } catch (Exception $e) {
-                $app->log->debug('fail in deleting assets. message: ' . $e->getMessage());
-            }
-        }
+    } catch (Exception $e) {
+        $app->log->debug(print_r($e, true));
+        $message = $e->getMessage();
     }
 
-    $app->log->debug('$count4deleteMedia: ' . $count4deleteMedia);
-    $app->log->debug('$count4deleteTask: ' . $count4deleteTask);
+    $app->log->debug('$count4updateMedia:' . $count4updateMedia);
 
     echo json_encode([
         'success' => $isSuccess,
@@ -494,6 +457,36 @@ $app->post('/media/:id/delete', function ($id) use ($app) {
     ]);
     return;
 })->name('media_delete');
+
+/**
+ * 削除されたメディアの復活
+ */
+$app->get('/media/:id/restore', function ($id) use ($app) {
+    $app->log->debug('$id: ' . $id);
+
+    $isSuccess = false;
+    $message = '予期せぬエラー';
+
+    try {
+        $query = "UPDATE media SET updated_at = datetime('now'), deleted_at = '' WHERE id = '{$id}' AND deleted_at <> ''";
+        $app->log->debug('$query:' . $query);
+        $count4updateMedia = $app->db->exec($query);
+
+        if ($count4updateMedia > 0) {
+            $isSuccess = true;
+            $message = '';
+        }
+    } catch (Exception $e) {
+        $app->log->debug(print_r($e, true));
+        $message = $e->getMessage();
+    }
+
+    echo json_encode([
+        'success' => $isSuccess,
+        'message' => $message
+    ]);
+    return;
+})->name('media_restore');
 
 /**
  * メディア再エンコード

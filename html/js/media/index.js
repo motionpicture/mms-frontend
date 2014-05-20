@@ -121,6 +121,22 @@ $(function(){
         return false;
     });
 
+    // ダウンロードボタン
+    $('.download-media').on('click', function(e){
+        var thisBtn = this;
+        var rootRow = $(thisBtn).parent().parent();
+        var mediaId = $('span.media-id', rootRow).text();
+        console.log('mediaId: ' + mediaId);
+        var url = "http://" + location.host + "/media/" + mediaId + "/download";
+        console.log('url: ' + url);
+        var html = "<html><head><meta http-equiv=\"refresh\" content=\"0; url=" + url + "\"></head><body></body></html>"
+        var downloadWindow = window.open('');
+        downloadWindow.document.write(html);
+        downloadWindow.document.close();
+
+        return false;
+    });
+
     // ページャー無効リンク
     $('.pager .disabled a').click(function(){
         console.log($(this));

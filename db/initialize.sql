@@ -25,7 +25,8 @@ CREATE TABLE `media` (
     `start_at` text DEFAULT NULL,
     `end_at` text DEFAULT NULL,
     `created_at` text NOT NULL,
-    `updated_at` text NOT NULL
+    `updated_at` text NOT NULL,
+    `deleted_at` text DEFAULT NULL
 );
 
 CREATE TABLE `task` (

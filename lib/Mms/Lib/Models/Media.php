@@ -37,6 +37,7 @@ class Media
     private $_endAt;
     private $_createdAt;
     private $_updatedAt;
+    private $_deletedAt;
 
     /**
      * Create media from array
@@ -142,6 +143,10 @@ class Media
         if (isset($options['updatedAt'])) {
           $this->_updatedAt = $options['updatedAt'];
         }
+
+        if (isset($options['deletedAt'])) {
+          $this->_deletedAt = $options['deletedAt'];
+        }
     }
 
     /**
@@ -171,7 +176,8 @@ class Media
           'start_at'         => $this->_startAt,
           'end_at'           => $this->_endAt,
           'created_at'       => $this->_createdAt,
-          'updated_at'       => $this->_updatedAt
+          'updated_at'       => $this->_updatedAt,
+          'deleted_at'       => $this->_deletedAt
        ];
     }
 
@@ -373,5 +379,15 @@ class Media
     public function setUpdatedAt($value)
     {
       $this->_updatedAt = $value;
+    }
+
+    public function getDeletedAt()
+    {
+      return $this->_deletedAt;
+    }
+
+    public function setDeletedAt($value)
+    {
+      $this->_deletedAt = $value;
     }
 }
