@@ -11,7 +11,7 @@ class AzureContext
     function __construct($mode)
     {
         // azure設定値
-        $azureIniArray = parse_ini_file(dirname(__FILE__) . '/../../../config/azure.ini', true);
+        $azureIniArray = parse_ini_file(__DIR__ . '/../../../config/azure.ini', true);
         self::$azureConfig = $azureIniArray[$mode];
     }
 

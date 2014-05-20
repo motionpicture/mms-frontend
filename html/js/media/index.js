@@ -78,6 +78,65 @@ $(function(){
         return false;
     });
 
+    $('.reencode-media').on('click', function(e){
+        var ladda = Ladda.create(this);
+        ladda.start();
+
+        var thisBtn = this;
+        var rootRow = $(thisBtn).parent().parent();
+        var mediaId = $('span.media-id', rootRow).text();
+        var data = {
+        };
+        console.log('mediaId: ' + mediaId);
+        console.log(data);
+
+        $.ajax({
+            type: 'post',
+            url: '/media/' + mediaId + '/reencode',
+            data: data,
+            dataType: 'json',
+            complete: function(response) {
+                ladda.stop();
+            },
+            success: function(response) {
+                console.log(JSON.stringify(response));
+
+                if (response.success) {
+                    console.log('reencode media success');
+                    alertTop(mediaId + 'の再エンコードを開始しました');
+                } else {
+                    console.log('reencode media fail');
+                    alertTop(mediaId + 'の再エンコードに失敗しました', 'danger');
+                }
+
+            },
+            error: function(XMLHttpRequest, textStatus, errorThrown) {
+                console.log("XMLHttpRequest : " + XMLHttpRequest.status);
+                console.log("textStatus : " + textStatus);
+                console.log("errorThrown : " + errorThrown.message);
+                alertTop(mediaId + 'の再エンコードに失敗しました', 'danger');
+            }
+        });
+
+        return false;
+    });
+
+    // ダウンロードボタン
+    $('.download-media').on('click', function(e){
+        var thisBtn = this;
+        var rootRow = $(thisBtn).parent().parent();
+        var mediaId = $('span.media-id', rootRow).text();
+        console.log('mediaId: ' + mediaId);
+        var url = "http://" + location.host + "/media/" + mediaId + "/download";
+        console.log('url: ' + url);
+        var html = "<html><head><meta http-equiv=\"refresh\" content=\"0; url=" + url + "\"></head><body></body></html>"
+        var downloadWindow = window.open('');
+        downloadWindow.document.write(html);
+        downloadWindow.document.close();
+
+        return false;
+    });
+
     // ページャー無効リンク
     $('.pager .disabled a').click(function(){
         console.log($(this));

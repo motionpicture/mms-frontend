@@ -28,6 +28,7 @@ class Media
     private $_movieName;
     private $_playtimeString;
     private $_playtimeSeconds;
+    private $_assetId;
     private $_jobId;
     private $_jobState;
     private $_jobStartAt;
@@ -36,6 +37,7 @@ class Media
     private $_endAt;
     private $_createdAt;
     private $_updatedAt;
+    private $_deletedAt;
 
     /**
      * Create media from array
@@ -72,8 +74,8 @@ class Media
      */
     public function __construct($mcode, $categoryId, $userId, $extension, $version)
     {
-        $this->_mcode         = $mcode;
-        $this->_categoryId          = $categoryId;
+        $this->_mcode = $mcode;
+        $this->_categoryId = $categoryId;
         $this->_userId = $userId;
         $this->_extension = $extension;
         $this->_version = $version;
@@ -104,6 +106,10 @@ class Media
 
         if (isset($options['playtimeSeconds'])) {
             $this->_playtimeSeconds = $options['playtimeSeconds'];
+        }
+
+        if (isset($options['assetId'])) {
+          $this->_assetId = $options['assetId'];
         }
 
         if (isset($options['jobId'])) {
@@ -137,6 +143,10 @@ class Media
         if (isset($options['updatedAt'])) {
           $this->_updatedAt = $options['updatedAt'];
         }
+
+        if (isset($options['deletedAt'])) {
+          $this->_deletedAt = $options['deletedAt'];
+        }
     }
 
     /**
@@ -158,6 +168,7 @@ class Media
           'movie_name'       => $this->_movieName,
           'playtime_string'  => $this->_playtimeString,
           'playtime_seconds' => $this->_playtimeSeconds,
+          'asset_id'         => $this->_assetId,
           'job_id'           => $this->_jobId,
           'job_state'        => $this->_jobState,
           'job_start_at'     => $this->_jobStartAt,
@@ -165,7 +176,8 @@ class Media
           'start_at'         => $this->_startAt,
           'end_at'           => $this->_endAt,
           'created_at'       => $this->_createdAt,
-          'updated_at'       => $this->_updatedAt
+          'updated_at'       => $this->_updatedAt,
+          'deleted_at'       => $this->_deletedAt
        ];
     }
 
@@ -279,6 +291,16 @@ class Media
       $this->_playtimeSeconds = $value;
     }
 
+    public function getAssetId()
+    {
+      return $this->_assetId;
+    }
+
+    public function setAssetId($value)
+    {
+      $this->_assetId = $value;
+    }
+
     public function getJobId()
     {
       return $this->_jobId;
@@ -357,5 +379,15 @@ class Media
     public function setUpdatedAt($value)
     {
       $this->_updatedAt = $value;
+    }
+
+    public function getDeletedAt()
+    {
+      return $this->_deletedAt;
+    }
+
+    public function setDeletedAt($value)
+    {
+      $this->_deletedAt = $value;
     }
 }

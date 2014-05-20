@@ -1,5 +1,7 @@
 ﻿<?php require dirname(__FILE__) . '/../header.php' ?>
 
+<script src="/js/media/new.js"></script>
+
 <div class="row">
     <div class="main">
         <h1 class="page-header">メディア登録</h1>

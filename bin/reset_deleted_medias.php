@@ -12,20 +12,20 @@ if (empty($mode)) {
 
 $userSettings = [
     'mode'    => $mode,
-    'logFile' => __DIR__ . '/../log/bin/delete_ended_medias/delete_ended_medias_' . $mode . '_' . date('Ymd') . '.log'
+    'logFile' => __DIR__ . '/../log/bin/reset_deleted_medias/reset_deleted_medias_' . $mode . '_' . date('Ymd') . '.log'
 ];
 
-require_once __DIR__ . '/Contexts/EndedMedias.php';
-$endedMedias = new \Mms\Bin\Contexts\EndedMedias(
+require_once __DIR__ . '/Contexts/DeletedMedias.php';
+$endedMedias = new \Mms\Bin\Contexts\DeletedMedias(
     $userSettings
 );
 
 $endedMedias->logger->log("\n////////////////////////////////////////////////////////////\n////////////////////////////////////////////////////////////\n");
-$endedMedias->logger->log(date('[Y/m/d H:i:s]') . ' start delete ended medias');
+$endedMedias->logger->log(date('[Y/m/d H:i:s]') . ' start reset deleted medias');
 
-$endedMedias->delete();
+$endedMedias->reset();
 
-$endedMedias->logger->log(date('[Y/m/d H:i:s]') . ' end delete ended medias');
+$endedMedias->logger->log(date('[Y/m/d H:i:s]') . ' end reset deleted medias');
 $endedMedias->logger->log("\n////////////////////////////////////////////////////////////\n////////////////////////////////////////////////////////////\n");
 
 ?>

@@ -17,6 +17,7 @@ CREATE TABLE `media` (
     `movie_name` text DEFAULT NULL,
     `playtime_string` text DEFAULT NULL,
     `playtime_seconds` real DEFAULT NULL,
+    `asset_id` text NOT NULL,
     `job_id` text DEFAULT NULL,
     `job_state` text DEFAULT NULL,
     `job_start_at` text DEFAULT NULL,
@@ -24,7 +25,8 @@ CREATE TABLE `media` (
     `start_at` text DEFAULT NULL,
     `end_at` text DEFAULT NULL,
     `created_at` text NOT NULL,
-    `updated_at` text NOT NULL
+    `updated_at` text NOT NULL,
+    `deleted_at` text DEFAULT NULL
 );
 
 CREATE TABLE `task` (

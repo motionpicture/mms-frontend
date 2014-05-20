@@ -1,7 +1,7 @@
 <?php
-namespace Mms\Bin;
+namespace Mms\Bin\Contexts;
 
-require_once('BaseContext.php');
+require_once __DIR__ . '/../BaseContext.php';
 
 use WindowsAzure\MediaServices\Models\Asset;
 use WindowsAzure\MediaServices\Models\Job;
@@ -11,7 +11,13 @@ use WindowsAzure\MediaServices\Models\TaskOptions;
 set_time_limit(0);
 ini_set('memory_limit', '1024M');
 
-class PreEncodeMedia extends BaseContext
+/**
+ * メディアサービスにてエンコードを開始する前のメディアという文脈
+ *
+ * @package   Mms\Bin\Contexts
+ * @author    Tetsu Yamazaki <yamazaki@motionpicture.jp>
+ */
+class PreEncodeMedia extends \Mms\Bin\BaseContext
 {
     /**
      * azureでアップロード済みのメディアID
@@ -33,9 +39,13 @@ class PreEncodeMedia extends BaseContext
      * @param string $mediaId メディアID
      * @param string $assetId アセットID
      */
-    function __construct($userSettings, $mediaId, $assetId)
+    function __construct($userSettings, $mediaId = null, $assetId = null)
     {
         parent::__construct($userSettings);
+
+        if (!$mediaId || !$assetId) {
+            throw new \Exception('mediaId and assetId is required.');
+        }
 
         self::$mediaId = $mediaId;
 
@@ -51,13 +61,17 @@ class PreEncodeMedia extends BaseContext
 
     public function encode()
     {
+        $this->logger->log("\n--------------------\n" . 'start function: ' . __FUNCTION__ . "\n--------------------\n");
+
         $job = null;
+        $isUpdated = false;
 
         try {
             $job = $this->createJob();
 
             if (!is_null($job)) {
                 $this->updateJob($job->getId(), $job->getState());
+                $isUpdated = true;
             }
         } catch (\Exception $e) {
             $message = 'encode throw exception. $mediaId:' . self::$mediaId . ' message:' . $e->getMessage();
@@ -65,13 +79,11 @@ class PreEncodeMedia extends BaseContext
             $this->reportError($message);
         }
 
-        // TODO ジョブ作成に失敗した場合、アセットが作成済みであれば削除
-//         if (!is_null(self::$asset) && is_null($job)) {
-//             try {
-//                $this->azureContext->getMediaServicesWrapper()->deleteAsset(self::$asset);
-//             } catch (Exception $e) {
-//             }
-//         }
+        $this->logger->log('encode result:' . print_r($isUpdated, true));
+
+        $this->logger->log("\n--------------------\n" . 'end function: ' . __FUNCTION__ . "\n--------------------\n");
+
+        return $isUpdated;
     }
 
     /**
@@ -182,7 +194,7 @@ class PreEncodeMedia extends BaseContext
       );
       $this->logger->log('$taskBody: ' . $taskBody);
       $task = new Task($taskBody, $mediaProcessor->getId(), TaskOptions::NONE);
-      $configurationFile  = dirname(__FILE__) . '/config/MediaPackager_MP4ToSmooth.xml';
+      $configurationFile  = __DIR__ . '/config/MediaPackager_MP4ToSmooth.xml';
       $task->setConfiguration(file_get_contents($configurationFile));
       $tasks[] = $task;
 
@@ -196,7 +208,7 @@ class PreEncodeMedia extends BaseContext
       );
 //         $task = new Task($taskBody, $mediaProcessor->getId(), TaskOptions::PROTECTED_CONFIGURATION);
       $task = new Task($taskBody, $mediaProcessor->getId(), TaskOptions::NONE);
-      $configurationFile  = dirname(__FILE__) . '/config/MediaPackager_SmoothToHLS.xml';
+      $configurationFile  = __DIR__ . '/config/MediaPackager_SmoothToHLS.xml';
       $task->setConfiguration(file_get_contents($configurationFile));
       $tasks[] = $task;
 
@@ -212,7 +224,7 @@ class PreEncodeMedia extends BaseContext
       // テスト段階では、TaskOptions::PROTECTED_CONFIGURATIONだとkeyIdを設定しなさい、と怒られる
 //         $task = new Task($taskBody, $mediaProcessor->getId(), TaskOptions::PROTECTED_CONFIGURATION);
       $task = new Task($taskBody, $mediaProcessor->getId(), TaskOptions::NONE);
-      $configurationFile  = dirname(__FILE__) . '/config/MediaEncryptor_PlayReadyProtection.xml';
+      $configurationFile  = __DIR__ . '/config/MediaEncryptor_PlayReadyProtection.xml';
       $task->setConfiguration(file_get_contents($configurationFile));
       $tasks[] = $task;
 
@@ -226,7 +238,7 @@ class PreEncodeMedia extends BaseContext
       );
 //         $task = new Task($taskBody, $mediaProcessor->getId(), TaskOptions::PROTECTED_CONFIGURATION);
       $task = new Task($taskBody, $mediaProcessor->getId(), TaskOptions::NONE);
-      $configurationFile  = dirname(__FILE__) . '/config/MediaPackager_SmoothToHLS.xml';
+      $configurationFile  = __DIR__ . '/config/MediaPackager_SmoothToHLS.xml';
       $task->setConfiguration(file_get_contents($configurationFile));
       $tasks[] = $task;
 

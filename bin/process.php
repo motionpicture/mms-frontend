@@ -3,7 +3,7 @@ $filepath = fgets(STDIN);
 $filepath = str_replace(array("\r\n", "\r", "\n"), '', $filepath);
 
 // 環境取得
-$modeFile = dirname(__FILE__) . '/../mode.php';
+$modeFile = __DIR__ . '/../mode.php';
 if (false === is_file($modeFile)) {
     exit('The application "mode file" does not exist.');
 }
@@ -14,30 +14,35 @@ if (empty($mode)) {
 
 $userSettings = [
     'mode'    => $mode,
-    'logFile' => dirname(__FILE__) . '/../log/bin/process/process_' . $mode . '_' . date('Ymd') . '.log'
+    'logFile' => __DIR__ . '/../log/bin/process/process_' . $mode . '_' . date('Ymd') . '.log'
 ];
 
-require_once('UploadedFile.php');
-$uploadedFile = new \Mms\Bin\UploadedFile(
+require_once __DIR__ . '/Contexts/UploadedFile.php';
+$uploadedFile = new \Mms\Bin\Contexts\UploadedFile(
     $userSettings,
     $filepath
 );
 
+$uploadedFile->logger->log("\n////////////////////////////////////////////////////////////\n////////////////////////////////////////////////////////////\n");
 $uploadedFile->logger->log(date('[Y/m/d H:i:s]') . ' start process');
 
 list($mediaId, $assetId) = $uploadedFile->path2asset();
 
 if (!is_null($mediaId) && !is_null($assetId)) {
-    require_once('PreEncodeMedia.php');
-    $preEncodeMedia = new \Mms\Bin\PreEncodeMedia(
+    require_once __DIR__ . '/Contexts/PreEncodeMedia.php';
+    $preEncodeMedia = new \Mms\Bin\Contexts\PreEncodeMedia(
         $userSettings,
         $mediaId,
         $assetId
     );
 
-    $preEncodeMedia->encode();
+    $encodeResult = $preEncodeMedia->encode();
+    if (!$encodeResult) {
+        // TODO アセット&メディア削除するか？
+    }
 }
 
 $uploadedFile->logger->log(date('[Y/m/d H:i:s]') . ' end process');
+$uploadedFile->logger->log("\n////////////////////////////////////////////////////////////\n////////////////////////////////////////////////////////////\n");
 
 ?>

@@ -6,12 +6,18 @@ ini_set('display_errors', 1);
 // デフォルトタイムゾーン
 date_default_timezone_set('Asia/Tokyo');
 
-require_once dirname(__FILE__) . '/../vendor/autoload.php';
+require_once __DIR__ . '/../vendor/autoload.php';
 
 spl_autoload_register(function ($class) {
-    require_once dirname(__FILE__) . '/../lib/' . strtr($class, '\\', DIRECTORY_SEPARATOR) . '.php';
+    require_once __DIR__ . '/../lib/' . strtr($class, '\\', DIRECTORY_SEPARATOR) . '.php';
 });
 
+/**
+ * バッチ処理のベース文脈クラス
+ *
+ * @package   Mms\Bin
+ * @author    Tetsu Yamazaki <yamazaki@motionpicture.jp>
+ */
 class BaseContext
 {
     public $db;
@@ -30,11 +36,15 @@ class BaseContext
             self::$isDev = true;
         }
 
+        $isDisplayOutput = false;
+        if (php_sapi_name() == 'cli' && self::$isDev) {
+            $isDisplayOutput = true;
+        }
         $this->logger = \Mms\Lib\Logger::getInstance();
         $this->logger->initialize(
             $userSettings['logFile'],
             self::$isDev,
-            self::$isDev
+            $isDisplayOutput
         );
 
         $this->azureContext = new \Mms\Lib\AzureContext(self::$mode);
@@ -69,14 +79,21 @@ class BaseContext
      */
     function reportError($message)
     {
-        $email = 'ilovegadd@gmail.com';
-        $subject = '[ムビチケ動画管理システム]エラー通知';
+        $this->logger->log("\n--------------------\n" . 'start function: ' . __FUNCTION__ . "\n--------------------\n");
+        $this->logger->log('args: ' . print_r(func_get_args(), true));
+
+        $errorsIniArray = parse_ini_file(__DIR__ . '/../config/errors.ini', true);
+        $errorsConfig = $errorsIniArray[$this->getMode()];
+
+        $to = implode(',', $errorsConfig['to']);
+        $subject = $errorsConfig['subject'];
         $headers = 'From: webmaster@pmmedia.cloudapp.net' . "\r\n"
                  . 'Reply-To: webmaster@pmmedia.cloudapp.net';
-        if (!mail($email, $subject, $message, $headers)) {
-            $egl = error_get_last();
-            $this->log('reportError throw exception. message:' . $egl['message']);
+        if (!mail($to, $subject, $message, $headers)) {
+            $this->log('reportError fail. $message:' . print_r($message, true));
         }
+
+        $this->logger->log("\n--------------------\n" . 'end function: ' . __FUNCTION__ . "\n--------------------\n");
     }
 }
 ?>

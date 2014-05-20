@@ -12,6 +12,11 @@ $headers = [
     'job_state'        => 'ジョブ進捗',
     'updated_at'       => '更新日時',
 ];
+
+if ($app->config('debug')) {
+    $headers['asset_id'] = 'アセット';
+    $headers['job_id'] = 'ジョブ';
+}
 ?>
 <?php foreach ($headers as $key => $name) { ?>
     <?php if ($searchConditions['orderby'] == $key && $searchConditions['sort'] == 'desc') { ?>

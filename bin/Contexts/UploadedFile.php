@@ -1,7 +1,7 @@
 <?php
-namespace Mms\Bin;
+namespace Mms\Bin\Contexts;
 
-require_once('BaseContext.php');
+require_once __DIR__ . '/../BaseContext.php';
 
 use WindowsAzure\MediaServices\Models\Asset;
 use WindowsAzure\MediaServices\Models\AccessPolicy;
@@ -17,11 +17,26 @@ use WindowsAzure\Blob\Models\CreateBlobBlockOptions;
 set_time_limit(0);
 ini_set('memory_limit', '1024M');
 
-class UploadedFile extends BaseContext
+/**
+ * 管理サイトあるいはFTPにてアップロードされたファイルという文脈
+ *
+ * @package   Mms\Bin\Contexts
+ * @author    Tetsu Yamazaki <yamazaki@motionpicture.jp>
+ */
+class UploadedFile extends \Mms\Bin\BaseContext
 {
+    /**
+     * 大きなサイズのファイルを小分けにしてアップロードする際の、分割ファイルサイズ
+     *
+     * @var int
+     */
     const CHUNK_SIZE = 1048576; // 1024 * 1024
 
-    // 入力ファイルパス
+    /**
+     * アップロードされたファイルパス
+     *
+     * @var string
+     */
     private static $filePath = null;
 
     /**
@@ -29,12 +44,16 @@ class UploadedFile extends BaseContext
      *
      * @see http://php.net/manual/ja/features.file-upload.common-pitfalls.php
      */
-    function __construct($userSettings, $filePath)
+    function __construct($userSettings, $filePath = null)
     {
         parent::__construct($userSettings);
 
         if (!$filePath) {
-            throw new \Exception('$filePath is required.');
+            throw new \Exception('filePath is required.');
+        }
+
+        if (!is_file($filePath)) {
+            throw new \Exception('file does not exists.');
         }
 
         self::$filePath = $filePath;
@@ -43,29 +62,28 @@ class UploadedFile extends BaseContext
     /**
      * アップロードされたファイルに対して処理を施す
      *
-     * 1.DBにメディアを登録
+     * 1.パスからメディアオブジェクトを生成
      * 2.メディアサーバーへアップロード
+     * 3.DBにメディアを登録
      *
      * @return array
      */
     public function path2asset()
     {
+        $this->logger->log("\n--------------------\n" . 'start function: ' . __FUNCTION__ . "\n--------------------\n");
+        $this->logger->log('args: ' . print_r(func_get_args(), true));
+
         $mediaId = null;
         $assetId = null;
+        $isComleted = false;
 
         try {
-            if (!is_file(self::$filePath)) {
-                $e = new \Exception('file does not exists.');
-                throw $e;
-            }
+            // パスからメディアオブジェクトへ変換
+            $media = $this->path2media(self::$filePath);
+            $mediaId = $media->getId();
 
-            $mediaId = $this->createMedia();
+            // メディアサービスへ資産としてアップロードする
             list($assetId, $isComleted) = $this->ingestAsset($mediaId);
-
-            if (!is_null($assetId) && !$isComleted) {
-                $assetId = null;
-                // TODO アセット削除
-            }
         } catch (\Exception $e) {
             $message = 'process throw exception. filePath:' . self::$filePath . ' message:' . $e->getMessage();
             $this->logger->log($message);
@@ -74,6 +92,41 @@ class UploadedFile extends BaseContext
             $mediaId = null;
             $assetId = null;
         }
+
+        try {
+            // メディア登録
+            if (!is_null($mediaId) && !is_null($assetId) && $isComleted) {
+                $media->setAssetId($assetId);
+
+                $query = vsprintf(
+                    "INSERT INTO media (id, code, mcode, category_id, version, size, extension, user_id, movie_name, playtime_string, playtime_seconds, asset_id, job_id, job_state, job_start_at, job_end_at, start_at, end_at, created_at, updated_at, deleted_at) VALUES ('%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', datetime('now', 'localtime'), datetime('now', 'localtime'), '')",
+                    $media->toArray()
+                );
+                $this->logger->log('$query:' . $query);
+                $this->db->exec($query);
+
+                $this->logger->log('media has been created. mediaId:' . $mediaId);
+            }
+        } catch (Exception $e) {
+            $message = 'inserting into media throw exception. $mediaId:' . $mediaId . ' $$assetId:' . $assetId . ' message:' . $e->getMessage();
+            $this->logger->log($message);
+            $this->reportError($message);
+
+            $mediaId = null;
+            $assetId = null;
+        }
+
+        if (!is_null($assetId) && !$isComleted) {
+            $assetId = null;
+            // TODO アセット削除
+        }
+
+        // 元ファイル削除
+        if (!$this->getIsDev() && (!is_null($mediaId) && !is_null($assetId))) {
+            unlink(self::$filePath);
+        }
+
+        $this->logger->log("\n--------------------\n" . 'end function: ' . __FUNCTION__ . "\n--------------------\n");
 
         return [$mediaId, $assetId];
     }
@@ -181,40 +234,6 @@ class UploadedFile extends BaseContext
     }
 
     /**
-     * DBへメディアを登録する
-     *
-     * @return string
-     */
-    private function createMedia()
-    {
-        $this->logger->log("\n--------------------\n" . 'start function: ' . __FUNCTION__ . "\n--------------------\n");
-
-        $mediaId = null;
-
-        try {
-            $media = $this->path2media(self::$filePath);
-
-            $query = vsprintf(
-                "INSERT INTO media (id, code, mcode, category_id, version, size, extension, user_id, movie_name, playtime_string, playtime_seconds, job_id, job_state, job_start_at, job_end_at, start_at, end_at, created_at, updated_at) VALUES ('%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', datetime('now', 'localtime'), datetime('now', 'localtime'))",
-                $media->toArray()
-            );
-            $this->logger->log('$query:' . $query);
-            $this->db->exec($query);
-
-            $mediaId = $media->getId();
-
-            $this->logger->log('media has been created. mediaId: ' . $mediaId);
-        } catch (\Exception $e) {
-            $this->logger->log('fail in creating media: ' . $e->getMessage());
-            throw $e;
-        }
-
-        $this->logger->log("\n--------------------\n" . 'end function: ' . __FUNCTION__ . "\n--------------------\n");
-
-        return $mediaId;
-    }
-
-    /**
      * 資産をインジェストする
      *
      * @see http://msdn.microsoft.com/ja-jp/library/jj129593.aspx
@@ -243,26 +262,28 @@ class UploadedFile extends BaseContext
             $this->logger->log('createAsset throw exception. message:' . $e->getMessage());
         }
 
-        try {
-            // ファイルのアップロードを実行する
-            $extension = pathinfo(self::$filePath, PATHINFO_EXTENSION);
-            $fileName = sprintf('%s.%s', $mediaId, $extension);
-            $this->upload2storage(basename($asset->getUri()), $fileName, self::$filePath);
+        if (!is_null($assetId)) {
+            try {
+                // ファイルのアップロードを実行する
+                $extension = pathinfo(self::$filePath, PATHINFO_EXTENSION);
+                $fileName = sprintf('%s.%s', $mediaId, $extension);
+                $this->upload2storage(basename($asset->getUri()), $fileName, self::$filePath);
 
-            $isUploaded = true;
-        } catch (\Exception $e) {
-            $this->logger->log('upload2storage throw exception. message:' . $e->getMessage());
-        }
+                $this->logger->log('file has been uploaded. filePath:' . self::$filePath);
+            } catch (\Exception $e) {
+               $this->logger->log('upload2storage throw exception. message:' . $e->getMessage());
+            }
 
-        try {
-            // ファイル メタデータの生成
-            $mediaServicesWrapper->createFileInfos($asset);
+            try {
+                // ファイル メタデータの生成
+                $mediaServicesWrapper->createFileInfos($asset);
 
-            // ここまできて初めて、アセットの準備が完了したことになる
-            $isCompleted = true;
-            $this->logger->log('inputAsset has been prepared completely. asset:' . $assetId);
-        } catch (\Exception $e) {
-            $this->logger->log('createFileInfos throw exception. message:' . $e->getMessage());
+                // ここまできて初めて、アセットの準備が完了したことになる
+                $isCompleted = true;
+                $this->logger->log('inputAsset has been prepared completely. asset:' . $assetId);
+            } catch (\Exception $e) {
+               $this->logger->log('createFileInfos throw exception. message:' . $e->getMessage());
+            }
         }
 
         $this->logger->log("\n--------------------\n" . 'end function: ' . __FUNCTION__ . "\n--------------------\n");
@@ -362,7 +383,7 @@ class UploadedFile extends BaseContext
 
         // PUTするためのファイルポインタ作成
         // なければ作成
-        $tmpDir = dirname(__FILE__) . DIRECTORY_SEPARATOR . 'tmp';
+        $tmpDir = __DIR__ . DIRECTORY_SEPARATOR . 'tmp';
         if (!file_exists($tmpDir)) {
             mkdir($tmpDir, 0777);
             chmod($tmpDir, 0777);
