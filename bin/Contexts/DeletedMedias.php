@@ -3,6 +3,8 @@ namespace Mms\Bin\Contexts;
 
 require_once __DIR__ . '/../BaseContext.php';
 
+set_time_limit(0);
+
 /**
  * 削除されたメディアという文脈
  *
@@ -125,7 +127,7 @@ class DeletedMedias extends \Mms\Bin\BaseContext
             }
 
             $isDeleted = true;
-        } catch (Exception $e) {
+        } catch (\Exception $e) {
             $this->logger->log('deleteOutputAssets throw exception. jobId:' . $jobId . ' message:' . $e->getMessage());
         }
 

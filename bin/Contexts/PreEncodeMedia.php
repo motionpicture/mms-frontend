@@ -52,13 +52,18 @@ class PreEncodeMedia extends \Mms\Bin\BaseContext
         try {
             $mediaServicesWrapper = $this->azureContext->getMediaServicesWrapper();
             self::$asset = $mediaServicesWrapper->getAsset($assetId);
-        } catch (Exception $e) {
+        } catch (\Exception $e) {
             $message = 'getAsset throw exception. $mediaId:' . $mediaId . ' $assetId:' . $assetId . ' message:' . $e->getMessage();
             $this->logger->log($message);
             throw $e;
         }
     }
 
+    /**
+     * エンコード処理を施す
+     *
+     * @return boolean
+     */
     public function encode()
     {
         $this->logger->log("\n--------------------\n" . 'start function: ' . __FUNCTION__ . "\n--------------------\n");
@@ -273,12 +278,6 @@ class PreEncodeMedia extends \Mms\Bin\BaseContext
     {
         $this->logger->log("\n--------------------\n" . 'start function: ' . __FUNCTION__ . "\n--------------------\n");
         $this->logger->log('args: ' . print_r(func_get_args(), true));
-
-        if (is_null($jobId) || is_null($jobState)) {
-            $e = new \Exception('job id & job state are required.');
-            $this->logger->log('updateMedia throw exception. message:' . $e->getMessage());
-            throw $e;
-        }
 
         // ジョブ情報をDBに登録
         $mediaId = self::$mediaId;

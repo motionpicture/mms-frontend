@@ -73,7 +73,7 @@ class Slim extends \Slim\Slim
             $result =  $this->db->exec($query);
             if ($result === false || $result === 0) {
                 $egl = error_get_last();
-                $e = new Exception('SQLの実行でエラーが発生しました' . $egl['message']);
+                $e = new \Exception('SQLの実行でエラーが発生しました' . $egl['message']);
                 throw $e;
             }
         }

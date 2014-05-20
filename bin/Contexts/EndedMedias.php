@@ -3,6 +3,8 @@ namespace Mms\Bin\Contexts;
 
 require_once __DIR__ . '/../BaseContext.php';
 
+set_time_limit(0);
+
 /**
  * 公開期間の終了したメディアという文脈
  *

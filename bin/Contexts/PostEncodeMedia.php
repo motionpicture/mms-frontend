@@ -61,7 +61,7 @@ class PostEncodeMedia extends \Mms\Bin\BaseContext
         try {
             $mediaServicesWrapper = $this->azureContext->getMediaServicesWrapper();
             self::$asset = $mediaServicesWrapper->getAsset($assetId);
-        } catch (Exception $e) {
+        } catch (\Exception $e) {
             $message = 'getAsset throw exception. $mediaId:' . $mediaId . ' $assetId:' . $assetId . ' message:' . $e->getMessage();
             $this->logger->log($message);
             throw $e;
@@ -78,41 +78,26 @@ class PostEncodeMedia extends \Mms\Bin\BaseContext
         $this->logger->log("\n--------------------\n" . 'start function: ' . __FUNCTION__ . "\n--------------------\n");
         $this->logger->log('args: ' . print_r(func_get_args(), true));
 
+        // ジョブキャンセル&資産削除
         $result = false;
-
         try {
-            require_once __DIR__ . '/PreEncodeMedia.php';
-            $preEncodeMedia = new \Mms\Bin\Contexts\PreEncodeMedia(
-                $this->userSettings,
-                self::$mediaId,
-                self::$asset->getId()
-            );
-
-            $result = $preEncodeMedia->encode();
-        } catch (Exception $e) {
-            $this->logger->log('reencode throw exception. message:' . $e->getMessage());
-        }
-
-        // エンコード成功の場合、ジョブキャンセル&資産削除
-        // この処理をしない場合、メディアサービスにゴミが溜まっていくだけで、動画管理システムとしては正常に動作する
-        if ($result) {
-            try {
-                // 失敗orキャンセル済みor完了のジョブをキャンセルしようとすると例外が投げられるので、チェックしてからキャンセル
-                $mediaServicesWrapper = $this->azureContext->getMediaServicesWrapper();
-                $jobState = $mediaServicesWrapper->getJobStatus(self::$jobId);
-                if ($jobState == Job::STATE_QUEUED
-                 || $jobState == Job::STATE_SCHEDULED
-                 || $jobState == Job::STATE_PROCESSING) {
-                    $mediaServicesWrapper->cancelJob(self::$jobId);
-                }
-
-                $this->deleteOutputAssets();
-            } catch (Exception $e) {
-                $this->logger->log('cancelJob or deleteAssets throw exception. message:' . $e->getMessage());
+            // 失敗orキャンセル済みor完了のジョブをキャンセルしようとすると例外が投げられるので、チェックしてからキャンセル
+            $mediaServicesWrapper = $this->azureContext->getMediaServicesWrapper();
+            $jobState = $mediaServicesWrapper->getJobStatus(self::$jobId);
+            if ($jobState == Job::STATE_QUEUED
+             || $jobState == Job::STATE_SCHEDULED
+             || $jobState == Job::STATE_PROCESSING) {
+                $mediaServicesWrapper->cancelJob(self::$jobId);
             }
+
+            if ($this->deleteOutputAssets()) {
+                $result = $this->resetMedia();
+            }
+        } catch (\Exception $e) {
+            $this->logger->log('cancelJob or deleteAssets throw exception. message:' . $e->getMessage());
         }
 
-        $this->logger->log('reencode result:' . print_r($result, true));
+        $this->logger->log('$result:' . print_r($result, true));
         $this->logger->log("\n--------------------\n" . 'end function: ' . __FUNCTION__ . "\n--------------------\n");
 
         return $result;
@@ -121,12 +106,14 @@ class PostEncodeMedia extends \Mms\Bin\BaseContext
     /**
      * ジョブのアウトプットアセットを削除する
      *
-     * @return none
+     * @return boolean
      */
     private function deleteOutputAssets()
     {
         $this->logger->log("\n--------------------\n" . 'start function: ' . __FUNCTION__ . "\n--------------------\n");
         $this->logger->log('args: ' . print_r(func_get_args(), true));
+
+        $isDeleted = false;
 
         try {
             $mediaServicesWrapper = $this->azureContext->getMediaServicesWrapper();
@@ -137,11 +124,56 @@ class PostEncodeMedia extends \Mms\Bin\BaseContext
             foreach ($outputAssets as $asset) {
                 $mediaServicesWrapper->deleteAsset($asset);
             }
-        } catch (Exception $e) {
-            $this->logger->log('deleteAssets throw exception. jobId:' . self::$jobId . ' message:' . $e->getMessage());
+
+            $isDeleted = true;
+        } catch (\Exception $e) {
+            $this->logger->log('deleteOutputAssets throw exception. jobId:' . self::$jobId . ' message:' . $e->getMessage());
         }
 
         $this->logger->log("\n--------------------\n" . 'end function: ' . __FUNCTION__ . "\n--------------------\n");
+
+        return $isDeleted;
+    }
+
+    /**
+     * メディアのジョブ情報&タスクをリセットする
+     *
+     * @return boolean
+     */
+    private function resetMedia()
+    {
+        $this->logger->log("\n--------------------\n" . 'start function: ' . __FUNCTION__ . "\n--------------------\n");
+
+        $count4updateMedia = 0;
+        $count4deleteTask = 0;
+        $isReset = false;
+
+        $this->db->beginTransaction();
+        try {
+            // メディアのジョブをリセット
+            $query = "UPDATE media SET updated_at = datetime('now'), job_id = '', job_state = '', job_start_at = '', job_end_at = '' WHERE id == '" . self::$mediaId . "'";
+            $this->logger->log('$query:' . $query);
+            $count4updateMedia = $this->db->exec($query);
+
+            // タスク削除
+            $query = "DELETE FROM task WHERE media_id == '" . self::$mediaId . "'";
+            $this->logger->log('$query:' . $query);
+            $count4deleteTask = $this->db->exec($query);
+
+            $this->db->commit();
+            $isReset = true;
+        } catch (\Exception $e) {
+            $this->db->rollBack();
+            $this->logger->log('resetMedia throw exception. message:' . $e->getMessage());
+        }
+
+        $this->logger->log('$count4updateMedia: ' . $count4updateMedia);
+        $this->logger->log('$count4deleteTask: ' . $count4deleteTask);
+        $this->logger->log('$isReset: ' . $isReset);
+
+        $this->logger->log("\n--------------------\n" . 'end function: ' . __FUNCTION__ . "\n--------------------\n");
+
+        return $isReset;
     }
 
     public function recreateInputAsset()

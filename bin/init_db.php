@@ -25,7 +25,7 @@ try {
     $query = file_get_contents(__DIR__ . '/../db/initialize.sql');
     $context->logger->log('$query:' . $query);
     $context->db->exec($query);
-} catch (Exception $e) {
+} catch (\Exception $e) {
     $context->logger->log('init_db throw exception. message:' . $e->getMessage());
 }
 

@@ -71,7 +71,6 @@ class UploadedFile extends \Mms\Bin\BaseContext
     public function path2asset()
     {
         $this->logger->log("\n--------------------\n" . 'start function: ' . __FUNCTION__ . "\n--------------------\n");
-        $this->logger->log('args: ' . print_r(func_get_args(), true));
 
         $mediaId = null;
         $assetId = null;
@@ -107,7 +106,7 @@ class UploadedFile extends \Mms\Bin\BaseContext
 
                 $this->logger->log('media has been created. mediaId:' . $mediaId);
             }
-        } catch (Exception $e) {
+        } catch (\Exception $e) {
             $message = 'inserting into media throw exception. $mediaId:' . $mediaId . ' $$assetId:' . $assetId . ' message:' . $e->getMessage();
             $this->logger->log($message);
             $this->reportError($message);
@@ -164,7 +163,7 @@ class UploadedFile extends \Mms\Bin\BaseContext
         } else {
             $version = $maxVersion + 1;
             // 既存バージョンの公開開始終了日時を引き継ぐ
-            $query = "SELECT start_at, end_at FROM media WHERE mcode = '{$mcode}' AND category_id = '{$categoryId}' AND version = '{$maxVersion}'";
+            $query = "SELECT start_at, end_at FROM media WHERE mcode = '{$mcode}' AND category_id = '{$categoryId}' AND version = '{$maxVersion}' AND deleted_at == ''";
             $statement = $this->db->query($query);
             $maxVersionMedia = $statement->fetch();
             $startAt = $maxVersionMedia['start_at'];

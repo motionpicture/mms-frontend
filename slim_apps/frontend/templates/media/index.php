@@ -75,13 +75,12 @@ table td {
                             <span class="media-deleted_at hide"><?php echo $media['deleted_at'] ?></span>
                             <a href="/media/<?php echo $media['code'] ?>" class="btn btn-default"><span class="ladda-label">詳細</span></a>
                             <a href="javascript:void(0)" class="update-media btn btn-primary ladda-button" data-style="zoom-in"><span class="ladda-label">更新</span></a>
-                            <?php if ($media['job_id']) { ?>
                             <a href="javascript:void(0)" class="download-media btn btn-default">ダウンロード</a>
 
+                            <?php if ($media['job_id']) { ?>
                             <?php if ($app->config('debug')) { ?>
                             <a href="javascript:void(0)" class="reencode-media btn btn-primary ladda-button" data-style="zoom-in"><span class="ladda-label">再エンコード</span></a>
                             <?php } ?>
-
                             <?php } ?>
                         </td>
                     </tr>

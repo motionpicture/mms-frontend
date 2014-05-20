@@ -36,7 +36,7 @@ try {
             $mediaServicesWrapper->deleteAsset($asset);
         }
     }
-} catch (Exception $e) {
+} catch (\Exception $e) {
     $context->logger->log('reset_assets throw exception. message:' . $e->getMessage());
 }
 
