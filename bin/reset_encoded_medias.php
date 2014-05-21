@@ -12,41 +12,41 @@ if (empty($mode)) {
 
 $userSettings = [
     'mode'    => $mode,
-    'logFile' => __DIR__ . '/../log/bin/encode/encode_' . $mode . '_' . date('Ymd') . '.log'
+    'logFile' => __DIR__ . '/../log/bin/reset_encoded_medias/reset_encoded_medias_' . $mode . '_' . date('Ymd') . '.log'
 ];
 
 require_once __DIR__ . '/BaseContext.php';
 $context = new \Mms\Bin\BaseContext($userSettings);
 
 $context->logger->log("\n////////////////////////////////////////////////////////////\n////////////////////////////////////////////////////////////\n");
-$context->logger->log(date('[Y/m/d H:i:s]') . ' start encode');
+$context->logger->log(date('[Y/m/d H:i:s]') . ' start reset_encoded_medias');
 
-$preEncodeMedias = [];
+$medias2reset = [];
 try {
-    // アセット作成済み、ジョブ未登録、未削除のメディアを取得
-    $query = "SELECT id, asset_id FROM media WHERE"
-           . " asset_id <> '' AND job_id == '' AND deleted_at == ''";
+    // エンコード前の状態に戻したいメディアを取得する
+    $query = "SELECT id, asset_id, job_id FROM media WHERE"
+           . " asset_id <> '' AND job_id <> '' AND job_state == '' AND deleted_at == ''";
     $result = $context->db->query($query);
-    $preEncodeMedias = $result->fetchAll();
+    $medias2reset = $result->fetchAll();
 } catch (\Exception $e) {
     $context->logger->log('selecting medias throw exception. message:' . $e->getMessage());
 }
 
-$context->logger->log('$preEncodeMedias:' . count($preEncodeMedias));
+$context->logger->log('$medias2reset:' . count($medias2reset));
 
-// ひとつずつエンコード
-require_once __DIR__ . '/Contexts/PreEncodeMedia.php';
-foreach ($preEncodeMedias as $preEncodeMedia) {
-    $preEncodeMediaContext = new \Mms\Bin\Contexts\PreEncodeMedia(
+require_once __DIR__ . '/Contexts/PostEncodeMedia.php';
+foreach ($medias2reset as $media) {
+    $postEncodeMediaContext = new \Mms\Bin\Contexts\PostEncodeMedia(
         $userSettings,
-        $preEncodeMedia['id'],
-        $preEncodeMedia['asset_id']
+        $media['id'],
+        $media['asset_id'],
+        $media['job_id']
     );
 
-    $preEncodeMediaContext->encode();
+    $postEncodeMediaContext->post2pre();
 }
 
-$context->logger->log(date('[Y/m/d H:i:s]') . ' end encode');
+$context->logger->log(date('[Y/m/d H:i:s]') . ' end reset_encoded_medias');
 $context->logger->log("\n////////////////////////////////////////////////////////////\n////////////////////////////////////////////////////////////\n");
 
 ?>

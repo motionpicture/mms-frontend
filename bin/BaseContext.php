@@ -95,5 +95,81 @@ class BaseContext
 
         $this->logger->log("\n--------------------\n" . 'end function: ' . __FUNCTION__ . "\n--------------------\n");
     }
+
+    /**
+     * メディアのジョブ情報&タスクをリセットする
+     *
+     * @param array $mediaIds
+     * @return boolean
+     */
+    protected function resetMedias($mediaIds)
+    {
+        $this->logger->log("\n--------------------\n" . 'start function: ' . __FUNCTION__ . "\n--------------------\n");
+        $this->logger->log('args: ' . print_r(func_get_args(), true));
+
+        $count4updateTask = 0;
+        $count4deleteTask = 0;
+        $isReset = false;
+
+        if (!empty($mediaIds)) {
+            $this->db->beginTransaction();
+            try {
+                // メディアのジョブをリセット
+                $query = "UPDATE media SET updated_at = datetime('now', 'localtime'), job_id = '', job_state = '', job_start_at = '', job_end_at = '' WHERE id IN ('" . implode("','", $mediaIds) . "')";
+                $this->logger->log('$query:' . $query);
+                $count4updateTask = $this->db->exec($query);
+
+                // タスク削除
+                $query = "DELETE FROM task WHERE media_id IN ('" . implode("','", $mediaIds) . "')";
+                $this->logger->log('$query:' . $query);
+                $count4deleteTask = $this->db->exec($query);
+
+                $this->db->commit();
+                $isReset = true;
+            } catch (\Exception $e) {
+                $this->db->rollBack();
+                $this->logger->log('resetMedias throw exception. message:' . $e->getMessage());
+            }
+        }
+
+        $this->logger->log('$count4updateTask: ' . $count4updateTask);
+        $this->logger->log('$count4deleteTask: ' . $count4deleteTask);
+
+        $this->logger->log("\n--------------------\n" . 'end function: ' . __FUNCTION__ . "\n--------------------\n");
+
+        return $isReset;
+    }
+
+    /**
+     * ジョブのアウトプットアセットを削除する
+     *
+     * @param string $jobId
+     * @return boolean
+     */
+    protected function deleteOutputAssets($jobId)
+    {
+        $this->logger->log("\n--------------------\n" . 'start function: ' . __FUNCTION__ . "\n--------------------\n");
+        $this->logger->log('args: ' . print_r(func_get_args(), true));
+
+        $isDeleted = false;
+
+        try {
+            $mediaServicesWrapper = $this->azureContext->getMediaServicesWrapper();
+
+            $outputAssets = $mediaServicesWrapper->getJobOutputMediaAssets($jobId);
+            $this->logger->log('$outputAssets:' . count($outputAssets));
+            foreach ($outputAssets as $outputAsset) {
+                $mediaServicesWrapper->deleteAsset($outputAsset);
+            }
+
+            $isDeleted = true;
+        } catch (\Exception $e) {
+            $this->logger->log('deleteOutputAssets throw exception. jobId:' . $jobId . ' message:' . $e->getMessage());
+        }
+
+        $this->logger->log("\n--------------------\n" . 'end function: ' . __FUNCTION__ . "\n--------------------\n");
+
+        return $isDeleted;
+    }
 }
 ?>

@@ -27,11 +27,11 @@ class PreEncodeMedia extends \Mms\Bin\BaseContext
     private static $mediaId = null;
 
     /**
-     * アップロード先のアセット
+     * アップロード先のアセットID
      *
-     * @var \WindowsAzure\MediaServices\Models\Asset
+     * @var string
      */
-    private static $asset = null;
+    private static $assetId = null;
 
     /**
      * __construct
@@ -48,15 +48,7 @@ class PreEncodeMedia extends \Mms\Bin\BaseContext
         }
 
         self::$mediaId = $mediaId;
-
-        try {
-            $mediaServicesWrapper = $this->azureContext->getMediaServicesWrapper();
-            self::$asset = $mediaServicesWrapper->getAsset($assetId);
-        } catch (\Exception $e) {
-            $message = 'getAsset throw exception. $mediaId:' . $mediaId . ' $assetId:' . $assetId . ' message:' . $e->getMessage();
-            $this->logger->log($message);
-            throw $e;
-        }
+        self::$assetId = $assetId;
     }
 
     /**
@@ -106,9 +98,11 @@ class PreEncodeMedia extends \Mms\Bin\BaseContext
 
         $tasks = $this->prepareTasks();
 
+        $inputAsset = $mediaServicesWrapper->getAsset(self::$assetId);
+
         $job = new Job();
         $job->setName('job_for_' . self::$mediaId);
-        $job = $mediaServicesWrapper->createJob($job, array(self::$asset), $tasks);
+        $job = $mediaServicesWrapper->createJob($job, array($inputAsset), $tasks);
 
         $this->logger->log('job has been created. job:' . $job->getId());
 

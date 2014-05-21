@@ -67,7 +67,7 @@ class Slim extends \Slim\Slim
         $count = $statement->fetchColumn();
 
         if ($count == 0) {
-            $query = sprintf("INSERT INTO user (id, created_at, updated_at) VALUES ('%s', datetime('now'), datetime('now'))",
+            $query = sprintf("INSERT INTO user (id, created_at, updated_at) VALUES ('%s', datetime('now', 'localtime'), datetime('now', 'localtime'))",
                             $_SERVER['PHP_AUTH_USER']);
             $this->log->debug($query);
             $result =  $this->db->exec($query);

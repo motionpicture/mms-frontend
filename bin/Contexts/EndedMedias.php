@@ -49,7 +49,7 @@ class EndedMedias extends \Mms\Bin\BaseContext
         if (!empty($mediaIds)) {
             try {
                 // メディア削除
-                $query = "UPDATE media SET updated_at = datetime('now'), deleted_at = datetime('now') WHERE id IN ('" . implode("','", $mediaIds) . "')";
+                $query = "UPDATE media SET updated_at = datetime('now', 'localtime'), deleted_at = datetime('now', 'localtime') WHERE id IN ('" . implode("','", $mediaIds) . "')";
                 $this->logger->log('$query:' . $query);
                 $count4updateMedia = $this->db->exec($query);
             } catch (\Exception $e) {
