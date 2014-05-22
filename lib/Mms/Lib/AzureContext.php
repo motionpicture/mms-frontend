@@ -3,26 +3,43 @@ namespace Mms\Lib;
 
 class AzureContext
 {
+    private static $instance = null;
+
+    private function __construct()
+    {
+    }
+
+    public static function getInstance($mode)
+    {
+        if (is_null(self::$instance)) {
+            // azure設定値
+            $azureIniArray = parse_ini_file(__DIR__ . '/../../../config/azure.ini', true);
+            self::$azureConfig = $azureIniArray[$mode];
+            self::$instance = new self;
+        }
+
+        return self::$instance;
+    }
+
+    public static function deleteInstance()
+    {
+        self::$instance = null;
+        return self::$instance;
+    }
+
     private static $azureConfig;
     private static $mediaServicesWrapper = null;
     private static $blobServicesWrapper = null;
     private static $blobAuthenticationScheme = null;
-
-    function __construct($mode)
-    {
-        // azure設定値
-        $azureIniArray = parse_ini_file(__DIR__ . '/../../../config/azure.ini', true);
-        self::$azureConfig = $azureIniArray[$mode];
-    }
 
     /**
      * WindowsAzureメディアサービスを取得する
      *
      * @return WindowsAzure\MediaServices\Internal\IMediaServices
      */
-    public static function getMediaServicesWrapper()
+    public function getMediaServicesWrapper()
     {
-        if (!isset(self::$mediaServicesWrapper)) {
+        if (is_null(self::$mediaServicesWrapper)) {
             // メディアサービス
             $settings = new \WindowsAzure\Common\Internal\MediaServicesSettings(
                 self::$azureConfig['media_service_account_name'],
@@ -41,9 +58,9 @@ class AzureContext
      *
      * @return WindowsAzure\Blob\Internal\IBlob
      */
-    public static function getBlobServicesWrapper()
+    public function getBlobServicesWrapper()
     {
-        if (!isset(self::$blobServicesWrapper)) {
+        if (is_null(self::$blobServicesWrapper)) {
             $connectionString =  sprintf(
                 'DefaultEndpointsProtocol=%s;AccountName=%s;AccountKey=%s',
                 'https',
@@ -61,9 +78,9 @@ class AzureContext
      *
      * @return WindowsAzure\Common\Internal\Authentication\SharedKeyAuthScheme
      */
-    public static function getBlobAuthenticationScheme()
+    public function getBlobAuthenticationScheme()
     {
-        if (!isset(self::$blobAuthenticationScheme)) {
+        if (is_null(self::$blobAuthenticationScheme)) {
             self::$blobAuthenticationScheme = new \WindowsAzure\Common\Internal\Authentication\SharedKeyAuthScheme(
                 self::$azureConfig['storage_account_name'],
                 self::$azureConfig['storage_account_key']

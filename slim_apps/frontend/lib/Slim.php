@@ -39,8 +39,10 @@ class Slim extends \Slim\Slim
         // デバッグモード
         if ($mode == 'development') {
             $userSettings['debug'] = true;
+            $userSettings['log.level'] = \Slim\Log::DEBUG;
         } else {
             $userSettings['debug'] = false;
+            $userSettings['log.level'] = \Slim\Log::INFO;
         }
 
         // ログファイル指定
@@ -51,11 +53,41 @@ class Slim extends \Slim\Slim
 
         $this->db = \Mms\Lib\PDO::getInstance($userSettings['mode']);
 
-        $this->azureContext = new \Mms\Lib\AzureContext($userSettings['mode']);
+        $this->azureContext = \Mms\Lib\AzureContext::getInstance($userSettings['mode']);
 
         $this->tryCreateUser();
 
         $this->log->debug(print_r($_SERVER, true));
+    }
+
+    /**
+     * Run
+     *
+     * This method invokes the middleware stack, including the core Slim application;
+     * the result is an array of HTTP status, header, and body. These three items
+     * are returned to the HTTP client.
+     */
+    public function run()
+    {
+        register_shutdown_function(array($this, 'shutdownHandler'));
+
+        parent::run();
+    }
+
+    public function shutdownHandler()
+    {
+        $error = error_get_last();
+        if (!is_array($error)) {
+            return;
+        }
+        // not fatal
+        if ($error['type'] > 1) {
+            return;
+        }
+
+        echo sprintf("%s %s \nin %s:%d\n", $error['type'], $error['message'], $error['file'], $error['line']);
+
+//         throw new \ErrorException($error['message'], $error['type'], 0, $error['file'], $error['line']);
     }
 
     private function tryCreateUser()

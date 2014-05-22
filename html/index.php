@@ -551,22 +551,30 @@ $app->get('/medias/download', function () use ($app) {
         throw new \Exception('ダウンロードに失敗しました');
     }
 
-    $files = [];
-    $locators = [];
-
-    set_time_limit(0);
-
+    ini_set('memory_limit', '1024M');
     $mediaServicesWrapper = $app->getMediaServicesWrapper();
 
     foreach ($mediaIds as $mediaId) {
+        set_time_limit(0);
+
         try {
             $query = "SELECT id, asset_id, extension FROM media WHERE id = '{$mediaId}'";
             $statement = $app->db->query($query);
             $media = $statement->fetch();
 
+            // 特定のAssetに対して、同時に5つを超える一意のLocatorを関連付けることはできない
+            // 万が一SASロケーターがあれば削除
+            $oldLocators = $mediaServicesWrapper->getAssetLocators($media['asset_id']);
+            foreach ($oldLocators as $oldLocator) {
+                if ($oldLocator->getType() == WindowsAzure\MediaServices\Models\Locator::TYPE_SAS) {
+                    $mediaServicesWrapper->deleteLocator($oldLocator);
+                    $app->log->debug('SAS locator has been deleted. $locator: '. print_r($oldLocator, true));
+                }
+            }
+
             // 読み取りアクセス許可を持つAccessPolicyの作成
             $accessPolicy = new WindowsAzure\MediaServices\Models\AccessPolicy('DownloadPolicy');
-            $accessPolicy->setDurationInMinutes(10); // 10分間有効
+            $accessPolicy->setDurationInMinutes(30); // 10分間有効
             $accessPolicy->setPermissions(WindowsAzure\MediaServices\Models\AccessPolicy::PERMISSIONS_READ);
             $accessPolicy = $mediaServicesWrapper->createAccessPolicy($accessPolicy);
 
@@ -583,49 +591,104 @@ $app->get('/medias/download', function () use ($app) {
             $locator->setStartTime(new \DateTime('now -5 minutes'));
             $locator = $mediaServicesWrapper->createLocator($locator);
 
-            $locators[] = $locator;
-
             // ロケーターからファイルパスを作成
             $name = sprintf('%s.%s', $media['id'], $media['extension']);
             $path = sprintf('%s/%s%s',
                 $locator->getBaseUri(),
                 $name,
                 $locator->getContentAccessComponent());
-            $files[] = [
-                'name' => $name,
-                'path' => $path
-            ];
+
+            // ファイルをZIPに追加
+            $startTime = microtime(true);
+            $startMem = memory_get_usage();
+            $zip->addFromString($name, file_get_contents($path));
+            $endTime = microtime(true);
+            $endMem = memory_get_usage();
+            $app->log->debug('MEM:' . $startMem . '-' . $endMem . '(' . ($endMem - $startMem) . ') / peak: ' . memory_get_peak_usage());
+            $app->log->debug("time:" . ($endTime - $startTime));
+
+            // ロケーター削除
+            $mediaServicesWrapper->deleteLocator($locator);
         } catch (\Exception $e) {
-            $app->log->log('creating DL URL throw exception. mediaId:' . $mediaId . ' message:' . $e->getMessage());
+            $app->log->error('creating DL URL throw exception. mediaId:' . $mediaId . ' message:' . $e->getMessage());
         }
-    }
-
-    $app->log->debug('$files:' . print_r($files, true));
-
-    // ファイルをZIPに追加
-    foreach ($files as $file) {
-        $zip->addFromString($file['name'], file_get_contents($file['path']));
     }
 
     $zip->close();
 
     // ストリームに出力
-    $app->response->headers->set('Content-Type', 'application/zip; name="' . basename($tmpZipFile) . '"');
-    $app->response->headers->set('Content-Disposition', 'attachment; filename="' . basename($tmpZipFile) . '"');
-    $app->response->headers->set('Content-Length', filesize($tmpZipFile));
-    echo file_get_contents($tmpZipFile);
+    header('Content-Description: File Transfer');
+    header('Content-Type: application/octet-stream');
+    header('Content-Disposition: attachment; filename=' . basename($tmpZipFile));
+    header('Expires: 0');
+    header('Cache-Control: must-revalidate');
+    header('Pragma: public');
+    header('Content-Length: ' . filesize($tmpZipFile));
+
+    // 出力バッファレベル
+    $app->log->debug('ob_get_level():' .  ob_get_level());
+    while (@ob_end_flush());
+    $app->log->debug('ob_get_level():' .  ob_get_level());
+
+    $app->log->info('filesize:' . filesize($tmpZipFile));
+
+    // @see http://www.php.net/manual/ja/function.readfile.php
+    readfile($tmpZipFile);
 
     // 一時ファイル削除
-    unlink($tmpZipFile);
+    $result = unlink($tmpZipFile);
+    $app->log->info('unlink result:' . print_r($result, true));
 
-    // ロケーター削除
-    foreach ($locators as $locator) {
-        $mediaServicesWrapper->deleteLocator($locator);
-    }
-
-    return;
-
+    exit;
 })->name('medias_download');
+
+/**
+ * メディアをまとめてダウンロード
+ */
+$app->get('/medias/downloadTest', function () use ($app) {
+    set_time_limit(0);
+
+    $tmpZipFile = __DIR__ . '/../tmp/medias_download_20140522_537d3f67af947.zip';
+
+    // ストリームに出力
+    header('Content-Description: File Transfer');
+    header('Content-Type: application/octet-stream');
+    header('Content-Disposition: attachment; filename=' . basename($tmpZipFile));
+    header('Expires: 0');
+    header('Cache-Control: must-revalidate');
+    header('Pragma: public');
+    header('Content-Length: ' . filesize($tmpZipFile));
+
+    // 出力バッファレベル
+    $app->log->debug('ob_get_level():' .  ob_get_level());
+    while (@ob_end_flush());
+    $app->log->debug('ob_get_level():' .  ob_get_level());
+
+    $app->log->info('filesize:' . filesize($tmpZipFile));
+
+    // readfileを使用する方法
+    // @see http://www.php.net/manual/ja/function.readfile.php
+    readfile($tmpZipFile);
+    exit;
+
+    ob_start();
+    $app->log->debug('ob_get_level():' .  ob_get_level());
+    $fp = fopen($tmpZipFile, 'rb');
+    while (!feof($fp)) {
+      // 指定したバイト数だけ出力
+      $bytes = fread($fp, 2048 * 2048);
+      echo $bytes;
+      // 出力
+      ob_flush();
+      //         flush();
+      //         sleep(1);
+    }
+    //     ob_end_flush();
+    fclose($fp);
+    ob_end_clean();
+
+    exit;
+})->name('medias_download_test');
 
 /**
  * アカウント編集
@@ -694,6 +757,29 @@ $app->post('/user/edit', function () use ($app) {
 
     $app->redirect('/user/edit', 303);
 });
+
+/**
+ * Error Handler
+ */
+$app->error(function (\Exception $e) use ($app) {
+    $app->log->error('route:{router}', [
+        'exception' => $e,
+        'router' => print_r($app->router->getCurrentRoute()->getName(), true)
+    ]);
+
+    return $app->render(
+        'error.php',
+        [
+            'message' => $e->getMessage()
+        ]
+    );
+});
+
+/**
+ * Not Found Handler
+*/
+// $app->notFound(function () use ($app) {
+// });
 
 $app->run();
 

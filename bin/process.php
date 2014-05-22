@@ -1,4 +1,8 @@
 <?php
+/**
+ * ブラウザあるいはFTPにてアップロードされたファイルをメディアサービスへアップロードする
+ */
+
 $filepath = fgets(STDIN);
 $filepath = str_replace(array("\r\n", "\r", "\n"), '', $filepath);
 

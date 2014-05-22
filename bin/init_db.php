@@ -1,4 +1,7 @@
 <?php
+/**
+ * DBを初期化する
+ */
 
 // 環境取得
 $modeFile = __DIR__ . '/../mode.php';

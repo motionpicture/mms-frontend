@@ -47,8 +47,7 @@ class BaseContext
             $isDisplayOutput
         );
 
-        $this->azureContext = new \Mms\Lib\AzureContext(self::$mode);
-
+        $this->azureContext = \Mms\Lib\AzureContext::getInstance(self::$mode);
         $this->db = \Mms\Lib\PDO::getInstance(self::$mode);
     }
 
@@ -76,6 +75,7 @@ class BaseContext
      * エラー通知
      *
      * @param string $message
+     * @return none
      */
     function reportError($message)
     {
@@ -90,7 +90,38 @@ class BaseContext
         $headers = 'From: webmaster@pmmedia.cloudapp.net' . "\r\n"
                  . 'Reply-To: webmaster@pmmedia.cloudapp.net';
         if (!mail($to, $subject, $message, $headers)) {
-            $this->log('reportError fail. $message:' . print_r($message, true));
+            $this->logger->log('reportError fail. $message:' . print_r($message, true));
+        }
+
+        $this->logger->log("\n--------------------\n" . 'end function: ' . __FUNCTION__ . "\n--------------------\n");
+    }
+
+    /**
+     * ストリームURL発行お知らせメールを送信する
+     *
+     * @param string $mediaCode
+     * @param string $userId
+     * @return none
+     */
+    public function sendEmail($mediaCode, $userId)
+    {
+        $this->logger->log("\n--------------------\n" . 'start function: ' . __FUNCTION__ . "\n--------------------\n");
+        $this->logger->log('args: ' . print_r(func_get_args(), true));
+
+        $query = "SELECT email FROM user WHERE id = '{$userId}'";
+        $statement = $this->db->query($query);
+        $email = $statement->fetchColumn();
+        $this->logger->log('$email:' . $email);
+
+        // 送信
+        if ($email) {
+            $subject = 'ストリーミングURLが発行されました';
+            $message = 'http://pmmedia.cloudapp.net/media/' . $mediaCode;
+            $headers = 'From: webmaster@pmmedia.cloudapp.net' . "\r\n"
+                     . 'Reply-To: webmaster@pmmedia.cloudapp.net';
+            if (!mail($email, $subject, $message, $headers)) {
+                $this->logger->log('sendEmail fail. $message:' . print_r($message, true));
+            }
         }
 
         $this->logger->log("\n--------------------\n" . 'end function: ' . __FUNCTION__ . "\n--------------------\n");
@@ -102,7 +133,7 @@ class BaseContext
      * @param array $mediaIds
      * @return boolean
      */
-    protected function resetMedias($mediaIds)
+    public function resetMedias($mediaIds)
     {
         $this->logger->log("\n--------------------\n" . 'start function: ' . __FUNCTION__ . "\n--------------------\n");
         $this->logger->log('args: ' . print_r(func_get_args(), true));
@@ -146,7 +177,7 @@ class BaseContext
      * @param string $jobId
      * @return boolean
      */
-    protected function deleteOutputAssets($jobId)
+    public function deleteOutputAssets($jobId)
     {
         $this->logger->log("\n--------------------\n" . 'start function: ' . __FUNCTION__ . "\n--------------------\n");
         $this->logger->log('args: ' . print_r(func_get_args(), true));

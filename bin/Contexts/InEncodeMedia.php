@@ -17,67 +17,50 @@ ini_set('memory_limit', '1024M');
  * @package   Mms\Bin\Contexts
  * @author    Tetsu Yamazaki <yamazaki@motionpicture.jp>
  */
-class InEncodeMedias extends \Mms\Bin\BaseContext
+class InEncodeMedia extends \Mms\Bin\BaseContext
 {
-    function __construct($userSettings)
-    {
-        parent::__construct($userSettings);
-    }
+    /**
+     * azureでアップロード済みのメディアID
+     *
+     * @var string
+     */
+    private static $id = null;
 
     /**
-     * ジョブ進捗を確認して更新する
+     * 登録済みのジョブID
+     *
+     * @var string
      */
-    public function checkJobState()
+    private static $jobId = null;
+
+    /**
+     * ジョブ進捗
+     *
+     * @var string
+     */
+    private static $jobState = null;
+
+    function __construct($userSettings, $id, $jobId, $jobState)
     {
-        $this->logger->log("\n--------------------\n" . 'start function: ' . __FUNCTION__ . "\n--------------------\n");
+        parent::__construct($userSettings);
 
-        $medias = [];
-
-        try {
-            // ジョブの状態が$QUEUED　or $SCHEDULED or $PROCESSINGのメディアに関してジョブの状況を確認する
-            $query = sprintf('SELECT * FROM media WHERE job_state = \'%s\' OR job_state = \'%s\' OR job_state = \'%s\'',
-                            Job::STATE_QUEUED,
-                            Job::STATE_SCHEDULED,
-                            Job::STATE_PROCESSING);
-            $result = $this->db->query($query);
-            $medias = $result->fetchAll();
-        } catch (\Exception $e) {
-            $this->logger->log($e->getMessage());
+        if (!$id || !$jobId) {
+            throw new \Exception('id and jobId are required.');
         }
 
-        foreach ($medias as $media) {
-            $this->logger->log("\n--------------------\n" . $media['id'] . ' checking job state...' . "\n--------------------\n");
-
-            // ひとつのメディアでの失敗が全体に影響しないように、ひとつずつtry-catch
-            try {
-                $url = $this->tryDeliverMedia($media['id'], $media['job_id'], $media['job_state']);
-
-                // URLが発行されればメール送信
-                if (!is_null($url)) {
-                    $this->sendEmail($media['code'], $media['user_id']);
-                }
-            } catch (\Exception $e) {
-                $message = 'tryDeliverMedia throw exception. $mediaId:' . $media['id'] . ' message:' . $e->getMessage();
-                $this->logger->log($message);
-                $this->reportError($message);
-            }
-        }
-
-        $this->logger->log("\n--------------------\n" . 'end function: ' . __FUNCTION__ . "\n--------------------\n");
+        self::$id = $id;
+        self::$jobId = $jobId;
+        self::$jobState = $jobState;
     }
 
     /**
      * ジョブの進捗を確認しステータス更新、完了していればURLを発行する
      *
-     * @param string $mediaId
-     * @param string $jobId
-     * @param string $jobState
      * @return string $url 発行されたURLをひとつ
      */
-    private function tryDeliverMedia($mediaId, $jobId, $jobState)
+    public function tryDeliverMedia()
     {
         $this->logger->log("\n--------------------\n" . 'start function: ' . __FUNCTION__ . "\n--------------------\n");
-        $this->logger->log('args: ' . print_r(func_get_args(), true));
 
         $job = null;
         $url = null;
@@ -86,7 +69,7 @@ class InEncodeMedias extends \Mms\Bin\BaseContext
 
         try {
             // メディアサービスよりジョブを取得
-            $job = $mediaServicesWrapper->getJob($jobId);
+            $job = $mediaServicesWrapper->getJob(self::$jobId);
         } catch (\Exception $e) {
             $message = '$mediaServicesWrapper->getJob() throw exception. message:' . $e->getMessage();
             throw $e;
@@ -94,7 +77,7 @@ class InEncodeMedias extends \Mms\Bin\BaseContext
 
         if (!is_null($job)) {
             // ジョブのステータスを更新
-            if ($jobState == $job->getState()) {
+            if (self::$jobState == $job->getState()) {
                 // 進捗に変化がなければ終了
                 return $url;
             }
@@ -106,7 +89,7 @@ class InEncodeMedias extends \Mms\Bin\BaseContext
                 // ジョブが完了の場合、URL発行プロセス
                 if ($job->getState() == Job::STATE_FINISHED) {
                     // 念のため、すでにURL発行されていれば全て削除
-                    $query = "DELETE FROM task WHERE media_id = '{$mediaId}';";
+                    $query = "DELETE FROM task WHERE media_id = '" . self::$id . "'";
                     $this->logger->log('$query: ' . $query);
                     $this->db->exec($query);
 
@@ -116,7 +99,7 @@ class InEncodeMedias extends \Mms\Bin\BaseContext
                                     date('Y-m-d H:i:s', strtotime('+9 hours', $job->getStartTime()->getTimestamp())),
                                     date('Y-m-d H:i:s', strtotime('+9 hours', $job->getEndTime()->getTimestamp())),
                                     'datetime(\'now\', \'localtime\')',
-                                    $mediaId);
+                                    self::$id);
                     $this->logger->log('$query: ' . $query);
                     $this->db->exec($query);
 
@@ -127,12 +110,12 @@ class InEncodeMedias extends \Mms\Bin\BaseContext
                         $assetNames4deliver = $this->getAssetNames4deliver();
 
                         if (in_array($asset->getName(), $assetNames4deliver)) {
-                            $urls = $this->createUrls($asset->getId(), $asset->getName(), $mediaId);
+                            $urls = $this->createUrls($asset->getId(), $asset->getName(), self::$id);
 
                             // タスク追加
                             foreach ($urls as $name => $url) {
-                                $query = sprintf("INSERT INTO task (media_id, name, url, created_at, updated_at) VALUES ('%s', '%s', '%s', %s, %s);",
-                                    $mediaId,
+                                $query = sprintf("INSERT INTO task (media_id, name, url, created_at, updated_at) VALUES ('%s', '%s', '%s', %s, %s)",
+                                    self::$id,
                                     $name,
                                     $url,
                                     'datetime(\'now\', \'localtime\')',
@@ -144,10 +127,10 @@ class InEncodeMedias extends \Mms\Bin\BaseContext
                     }
                 // 未完了の場合、ステータスの更新のみ
                 } else {
-                    $query = sprintf("UPDATE media SET job_state = '%s', updated_at = %s WHERE id = '%s';",
+                    $query = sprintf("UPDATE media SET job_state = '%s', updated_at = %s WHERE id = '%s'",
                                     $job->getState(),
                                     'datetime(\'now\', \'localtime\')',
-                                    $mediaId);
+                                    self::$id);
                     $this->logger->log('$query: ' . $query);
                     $this->db->exec($query);
                 }
@@ -188,10 +171,9 @@ class InEncodeMedias extends \Mms\Bin\BaseContext
      *
      * @param string $assetId
      * @param string $assetName
-     * @param string $mediaId
      * @return array
      */
-    private function createUrls($assetId, $assetName, $mediaId)
+    private function createUrls($assetId, $assetName)
     {
         $this->logger->log("\n--------------------\n" . 'start function: ' . __FUNCTION__ . "\n--------------------\n");
         $this->logger->log('args: ' . print_r(func_get_args(), true));
@@ -225,9 +207,9 @@ class InEncodeMedias extends \Mms\Bin\BaseContext
         switch ($assetName) {
             // adaptive bitrate mp4のアセットからは、mpeg dash, smooth streaming, hlsの3つのURLを生成
             case \Mms\Lib\Models\Task::NAME_ADAPTIVE_BITRATE_MP4:
-                $urls[\Mms\Lib\Models\Task::NAME_MPEG_DASH] = sprintf('%s%s.ism/Manifest(format=mpd-time-csf)', $locator->getPath(), $mediaId);
-                $urls[\Mms\Lib\Models\Task::NAME_SMOOTH_STREAMING] = sprintf('%s%s.ism/Manifest', $locator->getPath(), $mediaId);
-                $urls[\Mms\Lib\Models\Task::NAME_HLS] = sprintf('%s%s.ism/Manifest(format=m3u8-aapl)', $locator->getPath(), $mediaId);
+                $urls[\Mms\Lib\Models\Task::NAME_MPEG_DASH] = sprintf('%s%s.ism/Manifest(format=mpd-time-csf)', $locator->getPath(), self::$id);
+                $urls[\Mms\Lib\Models\Task::NAME_SMOOTH_STREAMING] = sprintf('%s%s.ism/Manifest', $locator->getPath(), self::$id);
+                $urls[\Mms\Lib\Models\Task::NAME_HLS] = sprintf('%s%s.ism/Manifest(format=m3u8-aapl)', $locator->getPath(), self::$id);
                 break;
 //             case \Mms\Lib\Models\Task::NAME_HLS:
 //             case \Mms\Lib\Models\Task::NAME_HLS_PLAYREADY:
@@ -241,37 +223,6 @@ class InEncodeMedias extends \Mms\Bin\BaseContext
         $this->logger->log("\n--------------------\n" . 'end function: ' . __FUNCTION__ . "\n--------------------\n");
 
         return $urls;
-    }
-
-    /**
-     * ストリームURL発行お知らせメールを送信する
-     *
-     * @param string $mediaCode
-     * @param string $userId
-     */
-    private function sendEmail($mediaCode, $userId)
-    {
-        $this->logger->log("\n--------------------\n" . 'start function: ' . __FUNCTION__ . "\n--------------------\n");
-        $this->logger->log('args: ' . print_r(func_get_args(), true));
-
-        $query = sprintf('SELECT email FROM user WHERE id = \'%s\';', $userId);
-        $statement = $this->db->query($query);
-        $email = $statement->fetchColumn();
-        $this->logger->log('$email:' . $email);
-
-        // 送信
-        if ($email) {
-            $subject = 'ストリーミングURLが発行されました';
-            $message = 'http://pmmedia.cloudapp.net/media/' . $mediaCode;
-            $headers = 'From: webmaster@pmmedia.cloudapp.net' . "\r\n"
-                     . 'Reply-To: webmaster@pmmedia.cloudapp.net';
-            if (!mail($email, $subject, $message, $headers)) {
-                $egl = error_get_last();
-                $this->logger->log('メール送信に失敗しました' . $egl['message']);
-            }
-        }
-
-        $this->logger->log("\n--------------------\n" . 'end function: ' . __FUNCTION__ . "\n--------------------\n");
     }
 }
 
