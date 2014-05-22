@@ -3,8 +3,6 @@ require_once dirname(__FILE__) . '/../../slim_apps/Api/Lib/Slim.php';
 
 $app = new \Mms\Api\Lib\Slim([
     'log.enable' => true,
-//     'log.path'    => '/../log',
-//     'log.level'    => 8,
     'templates.path' => dirname(__FILE__) . '/../../slim_apps/Api/Templates'
 ]);
 
@@ -29,7 +27,11 @@ $app->get('/media/stream/:mcode/:categoryId/:type/:version', function ($mcode, $
         $query = 'SELECT m1.*, c.name AS category_name';
         $query .= ' FROM media AS m1'
                 . ' INNER JOIN category AS c ON m1.category_id = c.id';
-        $where = "m1.mcode = " . $app->db->quote($mcode) . " AND m1.category_id = " . $app->db->quote($categoryId) . " AND m1.version = " . $app->db->quote($version) . " LIMIT 1";
+        $where = "m1.deleted_at = ''"
+               . " AND m1.mcode = " . $app->db->quote($mcode)
+               . " AND m1.category_id = " . $app->db->quote($categoryId)
+               . " AND m1.version = " . $app->db->quote($version)
+               . " LIMIT 1";
         $query .= ' WHERE ' . $where;
         $statement = $app->db->query($query);
         $media = $statement->fetch();
@@ -90,7 +92,10 @@ $app->get('/media/stream/:mcode/:categoryId/:type/', function ($mcode, $category
 
     try {
         // 最新バージョンを確定
-        $query = "SELECT MAX(version) AS max_version FROM media WHERE mcode = " . $app->db->quote($mcode) . " AND category_id = " . $app->db->quote($categoryId);
+        $query = "SELECT MAX(version) AS max_version FROM media WHERE"
+               . " deleted_at = ''"
+               . " AND mcode = " . $app->db->quote($mcode)
+               . " AND category_id = " . $app->db->quote($categoryId);
         $statement = $app->db->query($query);
         $maxVersion = $statement->fetchColumn();
 
@@ -126,6 +131,7 @@ $app->get('/streamable_medias', function () use ($app) {
     $medias = [];
 
     // 検索条件
+    // デフォルトは、公開期間中のメディアのみ
     $conditions = [
         'showing' => true
     ];
@@ -147,12 +153,14 @@ $app->get('/streamable_medias', function () use ($app) {
         $query .= ' FROM media AS m1'
                 . ' INNER JOIN category ON m1.category_id = category.id';
 
-        $where = "m1.id IS NOT NULL"
-               . " AND m1.job_state == " . \WindowsAzure\MediaServices\Models\Job::STATE_FINISHED;
+        // 未削除、かつ、ジョブ進捗完了のメディアを取得
+        $where = "m1.deleted_at = ''"
+               . " AND m1.job_state = " . \WindowsAzure\MediaServices\Models\Job::STATE_FINISHED;
 
         // 最新バージョンのメディアのみ取得
-        $where .= " AND m1.version = (SELECT MAX(m2.version) FROM media AS m2 WHERE m1.code =  m2.code)";
+        $where .= " AND m1.version = (SELECT MAX(m2.version) FROM media AS m2 WHERE m1.code =  m2.code AND m2.deleted_at = '')";
 
+        // 検索条件を追加
         if (isset($conditions['showing']) && $conditions['showing']) {
             $where .= " AND ("
                    . "m1.start_at IS NULL OR m1.start_at == ''"

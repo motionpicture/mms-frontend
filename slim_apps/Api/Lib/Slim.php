@@ -13,6 +13,7 @@ spl_autoload_register(function ($class) {
 class Slim extends \Slim\Slim
 {
     public $db;
+    public $logFile;
 
     /**
      * Constructor
@@ -35,12 +36,15 @@ class Slim extends \Slim\Slim
         // デバッグモード
         if ($mode == 'development') {
             $userSettings['debug'] = true;
+            $userSettings['log.level'] = \Slim\Log::DEBUG;
         } else {
             $userSettings['debug'] = false;
+            $userSettings['log.level'] = \Slim\Log::INFO;
         }
 
         // ログファイル指定
-        $userSettings['log.writer'] = new \Slim\LogWriter(fopen(dirname(__FILE__) . '/../../../log/api_' . $mode . '_' . date('Ymd') . '.log', 'a+'));
+        $this->logFile = dirname(__FILE__) . '/../../../log/api_' . $mode . '_' . date('Ymd') . '.log';
+        $userSettings['log.writer'] = new \Slim\LogWriter(fopen($this->logFile, 'a+'));
 
         parent::__construct($userSettings);
 
