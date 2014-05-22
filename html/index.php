@@ -205,10 +205,10 @@ $app->get('/medias', function () use ($app) {
 
         // ソート条件
         if (isset($_GET['orderby']) && $_GET['orderby'] != '') {
-          $searchConditions['orderby'] = $_GET['orderby'];
+            $searchConditions['orderby'] = $_GET['orderby'];
         }
         if (isset($_GET['sort']) && $_GET['sort'] != '') {
-          $searchConditions['sort'] = $_GET['sort'];
+            $searchConditions['sort'] = $_GET['sort'];
         }
         $query .= " ORDER BY m1.{$searchConditions['orderby']} {$searchConditions['sort']}";
 
@@ -218,9 +218,9 @@ $app->get('/medias', function () use ($app) {
 
         // ページ指定あればオフセット
         if (isset($_GET['page']) && $_GET['page'] != '') {
-          $searchConditions['page'] = (int)$_GET['page'];
-          $offset = $perPage * ($searchConditions['page'] - 1);
-          $query .= " OFFSET {$offset}";
+            $searchConditions['page'] = (int)$_GET['page'];
+            $offset = $perPage * ($searchConditions['page'] - 1);
+            $query .= " OFFSET {$offset}";
         }
 
         $statement = $app->db->query($query);
@@ -235,7 +235,6 @@ $app->get('/medias', function () use ($app) {
         'media/index.php',
         [
             'medias'           => $medias,
-            'jobState'         => new \Mms\Lib\JobState,
             'searchConditions' => $searchConditions,
             'categories'       => $categories,
             'perPage'          => $perPage
@@ -267,12 +266,15 @@ $app->get('/media/:code', function ($code) use ($app) {
                 \Mms\Lib\Models\Task::NAME_HLS => ''
             ];
 
-            $query = "SELECT name, url FROM task WHERE media_id = '{$media['id']}'";
-            $statement = $app->db->query($query);
-            $tasks = $statement->fetchAll();
+            // ジョブが完了していれば、タスクからURLを取得
+            if ($media['job_id'] && \Mms\Lib\JobState::isFinished($media['job_state'])) {
+                $query = "SELECT name, url FROM task WHERE media_id = '{$media['id']}'";
+                $statement = $app->db->query($query);
+                $tasks = $statement->fetchAll();
 
-            foreach ($tasks as $task) {
-                $medias[$key]['urls'][$task['name']] = $task['url'];
+                foreach ($tasks as $task) {
+                    $medias[$key]['urls'][$task['name']] = $task['url'];
+                }
             }
         }
     } catch (Exception $e) {
@@ -436,7 +438,7 @@ $app->post('/media/:id/delete', function ($id) use ($app) {
     $count4updateMedia = 0;
 
     try {
-        $query = "UPDATE media SET updated_at = datetime('now'), deleted_at = datetime('now') WHERE id = '{$id}'";
+        $query = "UPDATE media SET updated_at = datetime('now', 'localtime'), deleted_at = datetime('now', 'localtime') WHERE id = '{$id}'";
         $app->log->debug('$query:' . $query);
         $count4updateMedia = $app->db->exec($query);
 
@@ -468,7 +470,7 @@ $app->get('/media/:id/restore', function ($id) use ($app) {
     $message = '予期せぬエラー';
 
     try {
-        $query = "UPDATE media SET updated_at = datetime('now'), deleted_at = '' WHERE id = '{$id}' AND deleted_at <> ''";
+        $query = "UPDATE media SET updated_at = datetime('now', 'localtime'), deleted_at = '' WHERE id = '{$id}' AND deleted_at <> ''";
         $app->log->debug('$query:' . $query);
         $count4updateMedia = $app->db->exec($query);
 
@@ -477,7 +479,7 @@ $app->get('/media/:id/restore', function ($id) use ($app) {
             $message = '';
         }
     } catch (Exception $e) {
-        $app->log->debug(print_r($e, true));
+        $app->log->debug($e->getMessage());
         $message = $e->getMessage();
     }
 
@@ -490,6 +492,7 @@ $app->get('/media/:id/restore', function ($id) use ($app) {
 
 /**
  * メディア再エンコード
+ * job_stateを空にしておけば、クーロンが働いて再エンコード処理まで施してくれる
  */
 $app->post('/media/:id/reencode', function ($id) use ($app) {
     $app->log->debug('$id: ' . $id);
@@ -498,27 +501,16 @@ $app->post('/media/:id/reencode', function ($id) use ($app) {
     $message = '予期せぬエラー';
 
     try {
-        // メディアを取得
-        $query = "SELECT * FROM media WHERE id = '{$id}'";
-        $statement = $app->db->query($query);
-        $media = $statement->fetch();
+        $query = "UPDATE media SET updated_at = datetime('now', 'localtime'), job_state = '' WHERE id = '{$id}'";
+        $app->log->debug('$query:' . $query);
+        $count4updateMedia = $app->db->exec($query);
 
-        if (isset($media['id'])) {
-            require_once dirname(__FILE__) . '/../bin/Contexts/PostEncodeMedia.php';
-            $userSettings = [
-                'mode'    => $app->getMode(),
-                'logFile' => $app->logFile
-            ];
-            $postEncodeMedia = new \Mms\Bin\Contexts\PostEncodeMedia(
-                $userSettings,
-                $media['id'],
-                $media['asset_id'],
-                $media['job_id']
-            );
-            $isSuccess = $postEncodeMedia->reencode();
-            $message = '';
+        if ($count4updateMedia > 0) {
+          $isSuccess = true;
+          $message = '';
         }
     } catch (Exception $e) {
+        $app->log->debug($e->getMessage());
         $message = $e->getMessage();
     }
 
@@ -528,6 +520,175 @@ $app->post('/media/:id/reencode', function ($id) use ($app) {
     ]);
     return;
 })->name('media_reencode');
+
+/**
+ * メディアをまとめてダウンロード
+ */
+$app->get('/medias/download', function () use ($app) {
+    $mediaIds = [];
+    if (isset($_GET['ids']) && $_GET['ids']) {
+        $mediaIds = explode(',', $_GET['ids']);
+    }
+    $app->log->debug('$mediaIds:' . print_r($mediaIds, true));
+
+    if (count($mediaIds) < 1) {
+        throw new \Exception('メディアIDを指定してください');
+    }
+
+    $zip = new ZipArchive();
+
+    $tmpZipFile = sprintf('%s_%s_%s.zip',
+        __DIR__ . '/../tmp/' . 'medias_download',
+        date('Ymd'),
+        uniqid()
+    );
+    if (!file_exists(dirname($tmpZipFile))) {
+        mkdir(dirname($tmpZipFile), 0777, true);
+        chmod(dirname($tmpZipFile), 0777);
+    }
+    $result = $zip->open($tmpZipFile, ZIPARCHIVE::CREATE | ZIPARCHIVE::OVERWRITE);
+    if ($result !== true) {
+        throw new \Exception('ダウンロードに失敗しました');
+    }
+
+    ini_set('memory_limit', '1024M');
+    $mediaServicesWrapper = $app->getMediaServicesWrapper();
+
+    foreach ($mediaIds as $mediaId) {
+        set_time_limit(0);
+
+        try {
+            $query = "SELECT id, asset_id, extension FROM media WHERE id = '{$mediaId}'";
+            $statement = $app->db->query($query);
+            $media = $statement->fetch();
+
+            // 特定のAssetに対して、同時に5つを超える一意のLocatorを関連付けることはできない
+            // 万が一SASロケーターがあれば削除
+            $oldLocators = $mediaServicesWrapper->getAssetLocators($media['asset_id']);
+            foreach ($oldLocators as $oldLocator) {
+                if ($oldLocator->getType() == WindowsAzure\MediaServices\Models\Locator::TYPE_SAS) {
+                    $mediaServicesWrapper->deleteLocator($oldLocator);
+                    $app->log->debug('SAS locator has been deleted. $locator: '. print_r($oldLocator, true));
+                }
+            }
+
+            // 読み取りアクセス許可を持つAccessPolicyの作成
+            $accessPolicy = new WindowsAzure\MediaServices\Models\AccessPolicy('DownloadPolicy');
+            $accessPolicy->setDurationInMinutes(30); // 10分間有効
+            $accessPolicy->setPermissions(WindowsAzure\MediaServices\Models\AccessPolicy::PERMISSIONS_READ);
+            $accessPolicy = $mediaServicesWrapper->createAccessPolicy($accessPolicy);
+
+            // アセットを取得
+            $asset = $mediaServicesWrapper->getAsset($media['asset_id']);
+
+            // ダウンロードURLの作成
+            $locator = new WindowsAzure\MediaServices\Models\Locator(
+                $asset,
+                $accessPolicy,
+                WindowsAzure\MediaServices\Models\Locator::TYPE_SAS
+            );
+            $locator->setName('DownloadLocator_' . $asset->getId());
+            $locator->setStartTime(new \DateTime('now -5 minutes'));
+            $locator = $mediaServicesWrapper->createLocator($locator);
+
+            // ロケーターからファイルパスを作成
+            $name = sprintf('%s.%s', $media['id'], $media['extension']);
+            $path = sprintf('%s/%s%s',
+                $locator->getBaseUri(),
+                $name,
+                $locator->getContentAccessComponent());
+
+            // ファイルをZIPに追加
+            $startTime = microtime(true);
+            $startMem = memory_get_usage();
+            $zip->addFromString($name, file_get_contents($path));
+            $endTime = microtime(true);
+            $endMem = memory_get_usage();
+            $app->log->debug('MEM:' . $startMem . '-' . $endMem . '(' . ($endMem - $startMem) . ') / peak: ' . memory_get_peak_usage());
+            $app->log->debug("time:" . ($endTime - $startTime));
+
+            // ロケーター削除
+            $mediaServicesWrapper->deleteLocator($locator);
+        } catch (\Exception $e) {
+            $app->log->error('creating DL URL throw exception. mediaId:' . $mediaId . ' message:' . $e->getMessage());
+        }
+    }
+
+    $zip->close();
+
+    // ストリームに出力
+    header('Content-Description: File Transfer');
+    header('Content-Type: application/octet-stream');
+    header('Content-Disposition: attachment; filename=' . basename($tmpZipFile));
+    header('Expires: 0');
+    header('Cache-Control: must-revalidate');
+    header('Pragma: public');
+    header('Content-Length: ' . filesize($tmpZipFile));
+
+    // 出力バッファレベル
+    $app->log->debug('ob_get_level():' .  ob_get_level());
+    while (@ob_end_flush());
+    $app->log->debug('ob_get_level():' .  ob_get_level());
+
+    $app->log->info('filesize:' . filesize($tmpZipFile));
+
+    // @see http://www.php.net/manual/ja/function.readfile.php
+    readfile($tmpZipFile);
+
+    // 一時ファイル削除
+    $result = unlink($tmpZipFile);
+    $app->log->info('unlink result:' . print_r($result, true));
+
+    exit;
+})->name('medias_download');
+
+/**
+ * メディアをまとめてダウンロード
+ */
+$app->get('/medias/downloadTest', function () use ($app) {
+    set_time_limit(0);
+
+    $tmpZipFile = __DIR__ . '/../tmp/medias_download_20140522_537d3f67af947.zip';
+
+    // ストリームに出力
+    header('Content-Description: File Transfer');
+    header('Content-Type: application/octet-stream');
+    header('Content-Disposition: attachment; filename=' . basename($tmpZipFile));
+    header('Expires: 0');
+    header('Cache-Control: must-revalidate');
+    header('Pragma: public');
+    header('Content-Length: ' . filesize($tmpZipFile));
+
+    // 出力バッファレベル
+    $app->log->debug('ob_get_level():' .  ob_get_level());
+    while (@ob_end_flush());
+    $app->log->debug('ob_get_level():' .  ob_get_level());
+
+    $app->log->info('filesize:' . filesize($tmpZipFile));
+
+    // readfileを使用する方法
+    // @see http://www.php.net/manual/ja/function.readfile.php
+    readfile($tmpZipFile);
+    exit;
+
+    ob_start();
+    $app->log->debug('ob_get_level():' .  ob_get_level());
+    $fp = fopen($tmpZipFile, 'rb');
+    while (!feof($fp)) {
+      // 指定したバイト数だけ出力
+      $bytes = fread($fp, 2048 * 2048);
+      echo $bytes;
+      // 出力
+      ob_flush();
+      //         flush();
+      //         sleep(1);
+    }
+    //     ob_end_flush();
+    fclose($fp);
+    ob_end_clean();
+
+    exit;
+})->name('medias_download_test');
 
 /**
  * アカウント編集
@@ -586,7 +747,7 @@ $app->post('/user/edit', function () use ($app) {
 
     try {
         $email = $app->db->quote($_POST['email']);
-        $query = "UPDATE user SET email = {$email}, updated_at = datetime('now') WHERE id = '{$_SERVER['PHP_AUTH_USER']}'";
+        $query = "UPDATE user SET email = {$email}, updated_at = datetime('now', 'localtime') WHERE id = '{$_SERVER['PHP_AUTH_USER']}'";
         $app->log->debug('$query:' . $query);
         $app->db->exec($query);
     } catch (Exception $e) {
@@ -596,6 +757,29 @@ $app->post('/user/edit', function () use ($app) {
 
     $app->redirect('/user/edit', 303);
 });
+
+/**
+ * Error Handler
+ */
+$app->error(function (\Exception $e) use ($app) {
+    $app->log->error('route:{router}', [
+        'exception' => $e,
+        'router' => print_r($app->router->getCurrentRoute()->getName(), true)
+    ]);
+
+    return $app->render(
+        'error.php',
+        [
+            'message' => $e->getMessage()
+        ]
+    );
+});
+
+/**
+ * Not Found Handler
+*/
+// $app->notFound(function () use ($app) {
+// });
 
 $app->run();
 

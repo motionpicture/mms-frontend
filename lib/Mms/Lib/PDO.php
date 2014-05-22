@@ -6,7 +6,7 @@ class PDO
 {
     private static $instance = null;
 
-    public function __construct() {
+    private function __construct() {
     }
 
     public static function getInstance($mode)

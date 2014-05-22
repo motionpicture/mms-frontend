@@ -32,25 +32,27 @@ $(function(){
         }
     });
 
-    $('.update-media').on('click', function(e){
+    $('.update-media-by-code').on('click', function(e){
         var ladda = Ladda.create(this);
         ladda.start();
 
         var thisBtn = this;
         var rootRow = $(thisBtn).parent().parent();
-        var mediaId = $('span.media-id', rootRow).text();
+        var mediaCode = $('span.media-code', rootRow).text();
+        var movieName = $('input[name="movie_name"]', rootRow).val();
         var startAt = $('input[name="start_at"]', rootRow).val();
         var endAt = $('input[name="end_at"]', rootRow).val();
         var data = {
+            movie_name: movieName,
             start_at: startAt,
             end_at: endAt
         };
-        console.log('mediaId: ' + mediaId);
+        console.log('mediaCode: ' + mediaCode);
         console.log(data);
 
         $.ajax({
             type: 'post',
-            url: '/media/' + mediaId + '/update',
+            url: '/media/' + mediaCode + '/update_by_code',
             data: data,
             dataType: 'json',
             complete: function(response) {
@@ -60,11 +62,11 @@ $(function(){
                 console.log(JSON.stringify(response));
 
                 if (response.success) {
-                    console.log('update media success');
-                    alertTop(mediaId + 'を更新しました');
+                    console.log('update media by code success');
+                    alertTop('メディアを更新しました');
                 } else {
-                    console.log('update media fail');
-                    alertTop(mediaId + 'の更新に失敗しました', 'danger');
+                    console.log('update media by code fail');
+                    alertTop('メディアの更新に失敗しました', 'danger');
                 }
 
             },
@@ -72,6 +74,7 @@ $(function(){
                 console.log("XMLHttpRequest : " + XMLHttpRequest.status);
                 console.log("textStatus : " + textStatus);
                 console.log("errorThrown : " + errorThrown.message);
+                alertTop('メディアの更新に失敗しました', 'danger');
             }
         });
 
@@ -133,6 +136,46 @@ $(function(){
         var downloadWindow = window.open('');
         downloadWindow.document.write(html);
         downloadWindow.document.close();
+
+        return false;
+    });
+
+    // ページャー無効リンク
+    $('.pager .disabled a').click(function(){
+        console.log($(this));
+        return false;
+    })
+
+    // 全てのメディア選択orリセット
+    $('.select-all-medias').on('change', function(e){
+        console.log($(this).prop('checked'));
+        $('.table-responsive input[name="media_id"]').prop('checked', $(this).prop('checked'));
+    })
+
+    // バッチアクション
+    $('.batch button').on('click', function(e){
+        var action = $('.batch select[name="action"]').val();
+        console.log('action: ' + action);
+
+        var mediaIds=[];
+        $('.table-responsive input[name="media_id"]:checked').each(function(){
+            mediaIds.push($(this).val());
+        });
+        console.log('mediaIds: ' + mediaIds);
+
+        if (mediaIds.length < 1) {
+            alert('メディアを選択してください');
+            return false;
+        }
+
+        if (action == 'download') {
+            var url = "http://" + location.host + "/medias/download?ids=" + mediaIds;
+            console.log('url: ' + url);
+            var html = "<html><head><meta http-equiv=\"refresh\" content=\"0; url=" + url + "\"></head><body></body></html>"
+            var downloadWindow = window.open('');
+            downloadWindow.document.write(html);
+            downloadWindow.document.close();
+        }
 
         return false;
     });

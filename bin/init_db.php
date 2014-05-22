@@ -1,4 +1,7 @@
 <?php
+/**
+ * DBを初期化する
+ */
 
 // 環境取得
 $modeFile = __DIR__ . '/../mode.php';
@@ -25,7 +28,7 @@ try {
     $query = file_get_contents(__DIR__ . '/../db/initialize.sql');
     $context->logger->log('$query:' . $query);
     $context->db->exec($query);
-} catch (Exception $e) {
+} catch (\Exception $e) {
     $context->logger->log('init_db throw exception. message:' . $e->getMessage());
 }
 

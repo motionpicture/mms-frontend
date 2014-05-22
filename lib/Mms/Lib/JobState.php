@@ -21,19 +21,19 @@ class JobState
 
     public static function toString($state)
     {
-        if ($state === (string)Job::STATE_QUEUED) {
+        if ((string)$state === (string)Job::STATE_QUEUED) {
            return '待機中';
-        } else if ($state === (string)Job::STATE_SCHEDULED) {
+        } else if ((string)$state === (string)Job::STATE_SCHEDULED) {
             return 'スケジュール済み';
-        } else if ($state === (string)Job::STATE_PROCESSING) {
+        } else if ((string)$state === (string)Job::STATE_PROCESSING) {
             return '進行中';
-        } else if ($state === (string)Job::STATE_FINISHED) {
+        } else if ((string)$state === (string)Job::STATE_FINISHED) {
             return '完了';
-        } else if ($state === (string)Job::STATE_ERROR) {
+        } else if ((string)$state === (string)Job::STATE_ERROR) {
            return 'エラー';
-        } else if ($state === (string)Job::STATE_CANCELED) {
+        } else if ((string)$state === (string)Job::STATE_CANCELED) {
             return 'キャンセル済み';
-        } else if ($state === (string)Job::STATE_CANCELING) {
+        } else if ((string)$state === (string)Job::STATE_CANCELING) {
             return 'キャンセル中';
         } else {
             return '未登録';
@@ -42,6 +42,6 @@ class JobState
 
     public static function isFinished($state)
     {
-        return ($state == Job::STATE_FINISHED);
+        return ((string)$state === (string)Job::STATE_FINISHED);
     }
 }

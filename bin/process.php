@@ -1,4 +1,8 @@
 <?php
+/**
+ * ブラウザあるいはFTPにてアップロードされたファイルをメディアサービスへアップロードする
+ */
+
 $filepath = fgets(STDIN);
 $filepath = str_replace(array("\r\n", "\r", "\n"), '', $filepath);
 
@@ -27,20 +31,6 @@ $uploadedFile->logger->log("\n//////////////////////////////////////////////////
 $uploadedFile->logger->log(date('[Y/m/d H:i:s]') . ' start process');
 
 list($mediaId, $assetId) = $uploadedFile->path2asset();
-
-if (!is_null($mediaId) && !is_null($assetId)) {
-    require_once __DIR__ . '/Contexts/PreEncodeMedia.php';
-    $preEncodeMedia = new \Mms\Bin\Contexts\PreEncodeMedia(
-        $userSettings,
-        $mediaId,
-        $assetId
-    );
-
-    $encodeResult = $preEncodeMedia->encode();
-    if (!$encodeResult) {
-        // TODO アセット&メディア削除するか？
-    }
-}
 
 $uploadedFile->logger->log(date('[Y/m/d H:i:s]') . ' end process');
 $uploadedFile->logger->log("\n////////////////////////////////////////////////////////////\n////////////////////////////////////////////////////////////\n");

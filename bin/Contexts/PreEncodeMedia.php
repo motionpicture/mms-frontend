@@ -27,11 +27,11 @@ class PreEncodeMedia extends \Mms\Bin\BaseContext
     private static $mediaId = null;
 
     /**
-     * アップロード先のアセット
+     * アップロード先のアセットID
      *
-     * @var \WindowsAzure\MediaServices\Models\Asset
+     * @var string
      */
-    private static $asset = null;
+    private static $assetId = null;
 
     /**
      * __construct
@@ -48,17 +48,14 @@ class PreEncodeMedia extends \Mms\Bin\BaseContext
         }
 
         self::$mediaId = $mediaId;
-
-        try {
-            $mediaServicesWrapper = $this->azureContext->getMediaServicesWrapper();
-            self::$asset = $mediaServicesWrapper->getAsset($assetId);
-        } catch (Exception $e) {
-            $message = 'getAsset throw exception. $mediaId:' . $mediaId . ' $assetId:' . $assetId . ' message:' . $e->getMessage();
-            $this->logger->log($message);
-            throw $e;
-        }
+        self::$assetId = $assetId;
     }
 
+    /**
+     * エンコード処理を施す
+     *
+     * @return boolean
+     */
     public function encode()
     {
         $this->logger->log("\n--------------------\n" . 'start function: ' . __FUNCTION__ . "\n--------------------\n");
@@ -101,9 +98,11 @@ class PreEncodeMedia extends \Mms\Bin\BaseContext
 
         $tasks = $this->prepareTasks();
 
+        $inputAsset = $mediaServicesWrapper->getAsset(self::$assetId);
+
         $job = new Job();
         $job->setName('job_for_' . self::$mediaId);
-        $job = $mediaServicesWrapper->createJob($job, array(self::$asset), $tasks);
+        $job = $mediaServicesWrapper->createJob($job, array($inputAsset), $tasks);
 
         $this->logger->log('job has been created. job:' . $job->getId());
 
@@ -273,12 +272,6 @@ class PreEncodeMedia extends \Mms\Bin\BaseContext
     {
         $this->logger->log("\n--------------------\n" . 'start function: ' . __FUNCTION__ . "\n--------------------\n");
         $this->logger->log('args: ' . print_r(func_get_args(), true));
-
-        if (is_null($jobId) || is_null($jobState)) {
-            $e = new \Exception('job id & job state are required.');
-            $this->logger->log('updateMedia throw exception. message:' . $e->getMessage());
-            throw $e;
-        }
 
         // ジョブ情報をDBに登録
         $mediaId = self::$mediaId;

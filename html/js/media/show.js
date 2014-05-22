@@ -101,6 +101,7 @@ $(function(){
                 console.log("XMLHttpRequest : " + XMLHttpRequest.status);
                 console.log("textStatus : " + textStatus);
                 console.log("errorThrown : " + errorThrown.message);
+                alertTop('メディアの更新に失敗しました', 'danger');
             }
         });
 

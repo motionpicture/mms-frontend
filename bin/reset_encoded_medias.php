@@ -1,6 +1,6 @@
 <?php
 /**
- * 削除されたメディアに関して、ジョブやタスクをリセットする
+ * エンコード済みのメディアを、エンコード前の状態に戻す
  */
 
 // 環境取得
@@ -15,19 +15,20 @@ if (empty($mode)) {
 
 $userSettings = [
     'mode'    => $mode,
-    'logFile' => __DIR__ . '/../log/bin/reset_deleted_medias/reset_deleted_medias_' . $mode . '_' . date('Ymd') . '.log'
+    'logFile' => __DIR__ . '/../log/bin/reset_encoded_medias/reset_encoded_medias_' . $mode . '_' . date('Ymd') . '.log'
 ];
 
 require_once __DIR__ . '/BaseContext.php';
 $context = new \Mms\Bin\BaseContext($userSettings);
 
 $context->logger->log("\n////////////////////////////////////////////////////////////\n////////////////////////////////////////////////////////////\n");
-$context->logger->log(date('[Y/m/d H:i:s]') . ' start reset_deleted_medias');
+$context->logger->log(date('[Y/m/d H:i:s]') . ' start reset_encoded_medias');
 
 $medias2reset = [];
 try {
-    // 削除済み、かつ、ジョブ未リセット状態のメディアを取得する
-    $query = "SELECT id, asset_id, job_id FROM media WHERE deleted_at <> '' AND job_id <> ''";
+    // エンコード前の状態に戻したいメディアを取得する
+    $query = "SELECT id, asset_id, job_id FROM media WHERE"
+           . " asset_id <> '' AND job_id <> '' AND job_state == '' AND deleted_at == ''";
     $result = $context->db->query($query);
     $medias2reset = $result->fetchAll();
 } catch (\Exception $e) {
@@ -48,7 +49,7 @@ foreach ($medias2reset as $media) {
     $postEncodeMediaContext->post2pre();
 }
 
-$context->logger->log(date('[Y/m/d H:i:s]') . ' end reset_deleted_medias');
+$context->logger->log(date('[Y/m/d H:i:s]') . ' end reset_encoded_medias');
 $context->logger->log("\n////////////////////////////////////////////////////////////\n////////////////////////////////////////////////////////////\n");
 
 ?>
