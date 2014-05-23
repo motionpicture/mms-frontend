@@ -58,8 +58,7 @@ ua.isTablet = (ua.isiPad || (ua.isAndroid && ua.name.indexOf('mobile') < 0));
         <?php foreach ($medias as $media) { ?>
         <h3>ver.<?php echo $media['version'] ?></h3>
         <p>
-            <a href="javascript:void(0)" class="update-media btn btn-primary ladda-button" data-style="zoom-in"><span class="ladda-label">このバージョンを更新</span></a>
-            <a href="javascript:void(0)" class="delete-media btn btn-danger ladda-button" data-style="zoom-in"><span class="ladda-label">削除</span></a>
+            <a href="javascript:void(0)" class="delete-media btn btn-danger ladda-button" data-style="zoom-in"><span class="ladda-label">このバージョンを削除</span></a>
         </p>
 
         <div class="row">

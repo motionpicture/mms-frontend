@@ -352,47 +352,6 @@ $app->get('/media/:id/download', function ($id) use ($app) {
 })->name('media_download');
 
 /**
- * メディア更新
- */
-$app->post('/media/:id/update', function ($id) use ($app) {
-    $app->log->debug('$id: ' . $id);
-
-    $isSuccess = false;
-    $message = '予期せぬエラー';
-
-    // メディアを取得
-    $query = "SELECT * FROM media WHERE id = '{$id}'";
-    $statement = $app->db->query($query);
-    $media = $statement->fetch();
-
-    $count4update = 0;
-    if (isset($media['id'])) {
-        try {
-            $values = [];
-            $values['start_at'] = $app->db->quote($_POST['start_at']);
-            $values['end_at'] = $app->db->quote($_POST['end_at']);
-
-            $query = "UPDATE media SET start_at = {$values['start_at']}, end_at = {$values['end_at']}, updated_at = datetime('now', 'localtime') WHERE id = '{$id}';";
-            $app->log->debug('$query:' . $query);
-            $count4update = $app->db->exec($query);
-            $isSuccess = true;
-            $message = '';
-        } catch (\Exception $e) {
-            $message = $e->getMessage();
-            $app->log->debug('fail in updating media by id $id: '. $id . ' / $message: ' . $message);
-        }
-    }
-
-    $app->log->debug('$count4update:' . $count4update);
-
-    echo json_encode([
-        'success' => $isSuccess,
-        'message' => $message
-    ]);
-    return;
-})->name('media_update_by_id');
-
-/**
  * コードからメディア更新
  */
 $app->post('/media/:code/update_by_code', function ($code) use ($app) {
@@ -408,21 +367,27 @@ $app->post('/media/:code/update_by_code', function ($code) use ($app) {
         $values['start_at'] = $app->db->quote($_POST['start_at']);
         $values['end_at'] = $app->db->quote($_POST['end_at']);
 
-        $query = "UPDATE media SET movie_name = {$values['movie_name']}, start_at = {$values['start_at']}, end_at = {$values['end_at']}, updated_at = datetime('now', 'localtime') WHERE code = '{$code}';";
+        $query = "UPDATE media SET"
+               . " movie_name = {$values['movie_name']}"
+               . ", start_at = {$values['start_at']}"
+               . ", end_at = {$values['end_at']}"
+               . ", updated_at = datetime('now', 'localtime')"
+               . " WHERE code = '{$code}' AND deleted_at = ''";
         $app->log->debug('$query:' . $query);
         $count4update = $app->db->exec($query);
         $isSuccess = true;
         $message = '';
     } catch (\Exception $e) {
         $message = $e->getMessage();
-        $app->log->debug('fail in updating media by id $id: '. $id . ' / $message: ' . $message);
+        $app->log->debug('fail in updating media by code/ code:'. $code . ' / message:' . $message);
     }
 
     $app->log->debug('$count4update: ' . $count4update);
 
     echo json_encode([
-        'success' => $isSuccess,
-        'message' => $message
+        'success'      => $isSuccess,
+        'message'      => $message,
+        'update_count' => $count4update
     ]);
     return;
 })->name('media_update_by_code');
@@ -520,6 +485,57 @@ $app->post('/media/:id/reencode', function ($id) use ($app) {
     ]);
     return;
 })->name('media_reencode');
+
+/**
+ * コードからメディアをまとめて更新
+ */
+$app->post('/medias/update_by_code', function () use ($app) {
+    $isSuccess = false;
+    $message = '予期せぬエラー';
+    $count4update = 0;
+
+    if (isset($_POST['medias']) || is_array($_POST['medias'])) {
+        $app->db->beginTransaction();
+        try {
+            $medias = $_POST['medias'];
+            foreach ($medias as $media) {
+                if (isset($media['code'])) {
+                    $values = [];
+                    $values['code'] = $app->db->quote($media['code']);
+                    $values['movie_name'] = $app->db->quote($media['movie_name']);
+                    $values['start_at'] = $app->db->quote($media['start_at']);
+                    $values['end_at'] = $app->db->quote($media['end_at']);
+                    $query = "UPDATE media SET"
+                           . " movie_name = {$values['movie_name']}"
+                           . ", start_at = {$values['start_at']}"
+                           . ", end_at = {$values['end_at']}"
+                           . ", updated_at = datetime('now', 'localtime')"
+                           . " WHERE code = {$values['code']} AND deleted_at = ''";
+                    $app->log->debug('$query:' . $query);
+                    $count4update += $app->db->exec($query);
+                }
+            }
+
+            $app->db->commit();
+            $isSuccess = true;
+            $message = '';
+        } catch (\Exception $e) {
+            $app->db->rollBack();
+            $message = $e->getMessage();
+            $app->log->error('fail in updating medias. message:' . $message);
+        }
+    }
+
+    $app->log->debug('$count4update: ' . $count4update);
+
+    echo json_encode([
+        'success'      => $isSuccess,
+        'message'      => $message,
+        'update_count' => $count4update
+    ]);
+
+    return;
+})->name('medias_update_by_code');
 
 /**
  * メディアをまとめてダウンロード
