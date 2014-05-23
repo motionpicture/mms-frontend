@@ -163,7 +163,7 @@ class UploadedFile extends \Mms\Bin\BaseContext
         } else {
             $version = $maxVersion + 1;
             // 既存バージョンの公開開始終了日時を引き継ぐ
-            $query = "SELECT start_at, end_at FROM media WHERE mcode = '{$mcode}' AND category_id = '{$categoryId}' AND version = '{$maxVersion}' AND deleted_at == ''";
+            $query = "SELECT start_at, end_at FROM media WHERE mcode = '{$mcode}' AND category_id = '{$categoryId}' AND version = '{$maxVersion}' AND deleted_at = ''";
             $statement = $this->db->query($query);
             $maxVersionMedia = $statement->fetch();
             $startAt = $maxVersionMedia['start_at'];

@@ -45,7 +45,7 @@ $app->get('/media/new', function () use ($app) {
         $query = 'SELECT id, name FROM category';
         $statement = $app->db->query($query);
         $categories = $statement->fetchAll();
-    } catch (Exception $e) {
+    } catch (\Exception $e) {
         $this->log($e);
         throw $e;
     }
@@ -58,7 +58,7 @@ $app->get('/media/new', function () use ($app) {
             'categories' => $categories
         ]
     );
-});
+})->name('media_new');
 
 $app->post('/media/new', function () use ($app) {
     $message = null;
@@ -73,7 +73,7 @@ $app->post('/media/new', function () use ($app) {
         $query = 'SELECT * FROM category';
         $statement = $app->db->query($query);
         $categories = $statement->fetchAll();
-    } catch (Exception $e) {
+    } catch (\Exception $e) {
         $this->log($e);
         throw $e;
     }
@@ -124,14 +124,14 @@ $app->post('/media/new', function () use ($app) {
 
         if (!move_uploaded_file($_FILES['file']['tmp_name'], $uploadfile)) {
             $egl = error_get_last();
-            $e = new Exception('ファイルのアップロードでエラーが発生しました' . $egl['message']);
+            $e = new \Exception('ファイルのアップロードでエラーが発生しました' . $egl['message']);
             throw $e;
         }
 
         chmod($uploadfile, 0644);
 
         $isSaved = true;
-    } catch (Exception $e) {
+    } catch (\Exception $e) {
         $app->log->debug(print_r($e, true));
         throw $e;
     }
@@ -140,7 +140,7 @@ $app->post('/media/new', function () use ($app) {
         $app->flash('info', '動画がアップロードされました。まもなく一覧に反映されます。');
         $app->redirect('/medias', 303);
     }
-});
+})->name('media_create');
 
 /**
  * メディア一覧
@@ -166,7 +166,7 @@ $app->get('/medias', function () use ($app) {
             $categories[] = $res;
             $searchConditions['category'][] = $res['id'];
         }
-    } catch (Exception $e) {
+    } catch (\Exception $e) {
         throw $e;
     }
 
@@ -181,10 +181,10 @@ $app->get('/medias', function () use ($app) {
         $query .= ", ({$subQuery4versions}) AS versions";
         $query .= " FROM media AS m1"
                 . " INNER JOIN category ON m1.category_id = category.id"
-                . " WHERE m1.deleted_at == ''";
+                . " WHERE m1.deleted_at = ''";
 
         // 最新バージョンのメディアのみ取得
-        $query .= " AND m1.version = (SELECT MAX(m2.version) FROM media AS m2 WHERE m1.code =  m2.code AND m2.deleted_at == '')";
+        $query .= " AND m1.version = (SELECT MAX(m2.version) FROM media AS m2 WHERE m1.code =  m2.code AND m2.deleted_at = '')";
 
         // 検索条件を追加
         if (isset($_GET['word']) && $_GET['word'] != '') {
@@ -225,7 +225,7 @@ $app->get('/medias', function () use ($app) {
 
         $statement = $app->db->query($query);
         $medias = $statement->fetchAll();
-    } catch (Exception $e) {
+    } catch (\Exception $e) {
         $app->log->debug(print_r($e, true));
 
         throw $e;
@@ -253,7 +253,7 @@ $app->get('/media/:code', function ($code) use ($app) {
     try {
         $query = "SELECT media.*, category.name AS category_name FROM media"
                . " INNER JOIN category ON media.category_id = category.id"
-               . " WHERE media.code = '{$code}' AND media.deleted_at == ''"
+               . " WHERE media.code = '{$code}' AND media.deleted_at = ''"
                . " ORDER BY media.version DESC";
 
         $statement = $app->db->query($query);
@@ -277,7 +277,7 @@ $app->get('/media/:code', function ($code) use ($app) {
                 }
             }
         }
-    } catch (Exception $e) {
+    } catch (\Exception $e) {
         $app->log->debug(print_r($e, true));
         throw $e;
     }
@@ -336,19 +336,19 @@ $app->get('/media/:id/download', function ($id) use ($app) {
         header('Content-Disposition: attachment; filename="' . $fileName . '"');
         header('Content-Type: application/octet-stream');
         if (!readfile($path)) {
-            throw(new Exception("Cannot read the file(".$path.")"));
+            throw(new \Exception("Cannot read the file(".$path.")"));
         }
 
         // ロケーター削除
         $mediaServicesWrapper->deleteLocator($locator);
 
         exit;
-    } catch (Exception $e) {
+    } catch (\Exception $e) {
         $app->log->debug(print_r($e, true));
         throw $e;
     }
 
-    throw new Exception('予期せぬエラー');
+    throw new \Exception('予期せぬエラー');
 })->name('media_download');
 
 /**
@@ -377,7 +377,7 @@ $app->post('/media/:id/update', function ($id) use ($app) {
             $count4update = $app->db->exec($query);
             $isSuccess = true;
             $message = '';
-        } catch (Exception $e) {
+        } catch (\Exception $e) {
             $message = $e->getMessage();
             $app->log->debug('fail in updating media by id $id: '. $id . ' / $message: ' . $message);
         }
@@ -413,7 +413,7 @@ $app->post('/media/:code/update_by_code', function ($code) use ($app) {
         $count4update = $app->db->exec($query);
         $isSuccess = true;
         $message = '';
-    } catch (Exception $e) {
+    } catch (\Exception $e) {
         $message = $e->getMessage();
         $app->log->debug('fail in updating media by id $id: '. $id . ' / $message: ' . $message);
     }
@@ -446,7 +446,7 @@ $app->post('/media/:id/delete', function ($id) use ($app) {
             $isSuccess = true;
             $message = '';
         }
-    } catch (Exception $e) {
+    } catch (\Exception $e) {
         $app->log->debug(print_r($e, true));
         $message = $e->getMessage();
     }
@@ -478,7 +478,7 @@ $app->get('/media/:id/restore', function ($id) use ($app) {
             $isSuccess = true;
             $message = '';
         }
-    } catch (Exception $e) {
+    } catch (\Exception $e) {
         $app->log->debug($e->getMessage());
         $message = $e->getMessage();
     }
@@ -509,7 +509,7 @@ $app->post('/media/:id/reencode', function ($id) use ($app) {
           $isSuccess = true;
           $message = '';
         }
-    } catch (Exception $e) {
+    } catch (\Exception $e) {
         $app->log->debug($e->getMessage());
         $message = $e->getMessage();
     }
@@ -643,54 +643,6 @@ $app->get('/medias/download', function () use ($app) {
 })->name('medias_download');
 
 /**
- * メディアをまとめてダウンロード
- */
-$app->get('/medias/downloadTest', function () use ($app) {
-    set_time_limit(0);
-
-    $tmpZipFile = __DIR__ . '/../tmp/medias_download_20140522_537d3f67af947.zip';
-
-    // ストリームに出力
-    header('Content-Description: File Transfer');
-    header('Content-Type: application/octet-stream');
-    header('Content-Disposition: attachment; filename=' . basename($tmpZipFile));
-    header('Expires: 0');
-    header('Cache-Control: must-revalidate');
-    header('Pragma: public');
-    header('Content-Length: ' . filesize($tmpZipFile));
-
-    // 出力バッファレベル
-    $app->log->debug('ob_get_level():' .  ob_get_level());
-    while (@ob_end_flush());
-    $app->log->debug('ob_get_level():' .  ob_get_level());
-
-    $app->log->info('filesize:' . filesize($tmpZipFile));
-
-    // readfileを使用する方法
-    // @see http://www.php.net/manual/ja/function.readfile.php
-    readfile($tmpZipFile);
-    exit;
-
-    ob_start();
-    $app->log->debug('ob_get_level():' .  ob_get_level());
-    $fp = fopen($tmpZipFile, 'rb');
-    while (!feof($fp)) {
-      // 指定したバイト数だけ出力
-      $bytes = fread($fp, 2048 * 2048);
-      echo $bytes;
-      // 出力
-      ob_flush();
-      //         flush();
-      //         sleep(1);
-    }
-    //     ob_end_flush();
-    fclose($fp);
-    ob_end_clean();
-
-    exit;
-})->name('medias_download_test');
-
-/**
  * アカウント編集
  */
 $app->get('/user/edit', function () use ($app) {
@@ -716,7 +668,7 @@ $app->get('/user/edit', function () use ($app) {
             'defaults' => $defaults
         ]
     );
-});
+})->name('user_edit');
 
 /**
  * アカウント編集
@@ -750,13 +702,13 @@ $app->post('/user/edit', function () use ($app) {
         $query = "UPDATE user SET email = {$email}, updated_at = datetime('now', 'localtime') WHERE id = '{$_SERVER['PHP_AUTH_USER']}'";
         $app->log->debug('$query:' . $query);
         $app->db->exec($query);
-    } catch (Exception $e) {
+    } catch (\Exception $e) {
         $app->log->debug(print_r($e, true));
         throw $e;
     }
 
     $app->redirect('/user/edit', 303);
-});
+})->name('user_update');
 
 /**
  * Error Handler

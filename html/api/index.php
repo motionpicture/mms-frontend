@@ -163,11 +163,11 @@ $app->get('/streamable_medias', function () use ($app) {
         // 検索条件を追加
         if (isset($conditions['showing']) && $conditions['showing']) {
             $where .= " AND ("
-                   . "m1.start_at IS NULL OR m1.start_at == ''"
+                   . "m1.start_at IS NULL OR m1.start_at = ''"
                    . " OR (m1.start_at IS NOT NULL AND m1.start_at <> '' AND m1.start_at <= datetime('now', 'localtime'))"
                    . ")"
                    . " AND ("
-                   . "m1.end_at IS NULL OR m1.end_at == ''"
+                   . "m1.end_at IS NULL OR m1.end_at = ''"
                    . " OR (m1.end_at IS NOT NULL AND m1.end_at <> '' AND m1.end_at >= datetime('now', 'localtime'))"
                    . ")";
         }

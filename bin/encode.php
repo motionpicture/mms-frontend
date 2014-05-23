@@ -28,7 +28,7 @@ $preEncodeMedias = [];
 try {
     // アセット作成済み、ジョブ未登録、未削除のメディアを取得
     $query = "SELECT id, asset_id FROM media WHERE"
-           . " asset_id <> '' AND job_id == '' AND deleted_at == ''";
+           . " asset_id <> '' AND job_id = '' AND deleted_at = ''";
     $result = $context->db->query($query);
     $preEncodeMedias = $result->fetchAll();
 } catch (\Exception $e) {

@@ -28,7 +28,7 @@ $context->logger->log(date('[Y/m/d H:i:s]') . ' start delete_ended_medias');
 // 未削除、かつ、公開終了日時の過ぎたメディアを取得
 $mediaIds = [];
 try {
-    $where = "deleted_at == ''"
+    $where = "deleted_at = ''"
            . " AND start_at IS NOT NULL AND end_at IS NOT NULL"
            . " AND start_at <> '' AND end_at <> ''"
            . " AND start_at < datetime('now', 'localtime') AND end_at < datetime('now', 'localtime')";

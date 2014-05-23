@@ -28,7 +28,7 @@ $medias2reset = [];
 try {
     // エンコード前の状態に戻したいメディアを取得する
     $query = "SELECT id, asset_id, job_id FROM media WHERE"
-           . " asset_id <> '' AND job_id <> '' AND job_state == '' AND deleted_at == ''";
+           . " asset_id <> '' AND job_id <> '' AND job_state = '' AND deleted_at = ''";
     $result = $context->db->query($query);
     $medias2reset = $result->fetchAll();
 } catch (\Exception $e) {
