@@ -26,6 +26,7 @@ class BaseContext
     public $userSettings;
     private static $isDev = false;
     private static $mode;
+    private static $host;
 
     function __construct($userSettings = [])
     {
@@ -34,6 +35,9 @@ class BaseContext
 
         if (self::$mode == 'development') {
             self::$isDev = true;
+            self::$host = 'localhost';
+        } else {
+            self::$host = 'pmmediasvc.cloudapp.net';
         }
 
         $isDisplayOutput = false;
@@ -85,10 +89,11 @@ class BaseContext
         $errorsIniArray = parse_ini_file(__DIR__ . '/../config/errors.ini', true);
         $errorsConfig = $errorsIniArray[$this->getMode()];
 
+        $host = self::$host;
         $to = implode(',', $errorsConfig['to']);
         $subject = $errorsConfig['subject'];
-        $headers = 'From: webmaster@pmmedia.cloudapp.net' . "\r\n"
-                 . 'Reply-To: webmaster@pmmedia.cloudapp.net';
+        $headers = "From: webmaster@{$host}" . "\r\n"
+                 . "Reply-To: webmaster@{$host}";
         if (!mail($to, $subject, $message, $headers)) {
             $this->logger->log('reportError fail. $message:' . print_r($message, true));
         }
@@ -115,10 +120,11 @@ class BaseContext
 
         // 送信
         if ($email) {
-            $subject = 'ストリーミングURLが発行されました';
-            $message = 'http://pmmedia.cloudapp.net/media/' . $mediaCode;
-            $headers = 'From: webmaster@pmmedia.cloudapp.net' . "\r\n"
-                     . 'Reply-To: webmaster@pmmedia.cloudapp.net';
+            $host = self::$host;
+            $subject = '[ムビチケ動画管理システム]ストリーミングURLが発行されました';
+            $message = "http://{$host}/media/{$mediaCode}";
+            $headers = "From: webmaster@{$host}" . "\r\n"
+                     . "Reply-To: webmaster@{$host}";
             if (!mail($email, $subject, $message, $headers)) {
                 $this->logger->log('sendEmail fail. $message:' . print_r($message, true));
             }
