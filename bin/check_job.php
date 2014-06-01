@@ -55,7 +55,7 @@ foreach ($medias as $media) {
 
         // URLが発行されればメール送信
         if (!is_null($url)) {
-            $context->sendEmail($media['code'], $media['user_id']);
+            $context->sendEmail($media);
         }
     } catch (\Exception $e) {
         $message = 'tryDeliverMedia throw exception. $mediaId:' . $media['id'] . ' message:' . $e->getMessage();

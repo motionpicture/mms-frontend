@@ -84,7 +84,9 @@ class PostEncodeMedia extends \Mms\Bin\BaseContext
             $this->deleteOutputAssets(self::$jobId);
             $result = $this->resetMedias([self::$mediaId]);
         } catch (\Exception $e) {
-            $this->logger->log('reset throw exception. message:' . $e->getMessage());
+            $message = 'reset throw exception. message:' . $e->getMessage();
+            $this->logger->log($message);
+            $this->reportError($message);
         }
 
         $this->logger->log('post2pre $result:' . print_r($result, true));

@@ -68,12 +68,28 @@ class Media
     /**
      * Create media
      *
-     * @param string $taskBody         Task body.
-     * @param string $mediaProcessorId Media processor identifier.
-     * @param int    $options          Task encryption options.
+     * @param string $mcode      作品コード
+     * @param string $categoryId カテゴリーID
+     * @param int    $userId     ユーザーID
+     * @param int    $extension  拡張子
+     * @param int    $version    バージョン
      */
     public function __construct($mcode, $categoryId, $userId, $extension, $version)
     {
+        // 値の妥当性チェック
+        if (!preg_match("/^\d{6}$/", $mcode)) {
+            throw new \Exception('invalid mcode.');
+        }
+        if (!preg_match("/^\d{1,}$/", $categoryId)) {
+            throw new \Exception('invalid category id.');
+        }
+        if (!preg_match("/^\d{1,}$/", $userId)) {
+          throw new \Exception('invalid user id.');
+        }
+        if (!preg_match("/^\d{1,}$/", $version)) {
+          throw new \Exception('invalid version.');
+        }
+
         $this->_mcode = $mcode;
         $this->_categoryId = $categoryId;
         $this->_userId = $userId;

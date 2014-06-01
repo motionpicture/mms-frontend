@@ -72,7 +72,8 @@ class InEncodeMedia extends \Mms\Bin\BaseContext
             $job = $mediaServicesWrapper->getJob(self::$jobId);
         } catch (\Exception $e) {
             $message = '$mediaServicesWrapper->getJob() throw exception. message:' . $e->getMessage();
-            throw $e;
+            $this->logger->log($message);
+            $this->reportError($message);
         }
 
         if (!is_null($job)) {
@@ -139,7 +140,8 @@ class InEncodeMedia extends \Mms\Bin\BaseContext
             } catch (\Exception $e) {
                 $this->db->rollBack();
                 $message = 'delivering url for streaming throw exception. message:' . $e->getMessage();
-                throw $e;
+                $this->logger->log($message);
+                $this->reportError($message);
             }
         }
 

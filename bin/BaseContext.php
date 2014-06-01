@@ -1,6 +1,10 @@
 <?php
 namespace Mms\Bin;
 
+use PEAR;
+use Mail;
+use Mail_mime;
+
 ini_set('display_errors', 1);
 
 // デフォルトタイムゾーン
@@ -37,7 +41,7 @@ class BaseContext
             self::$isDev = true;
             self::$host = 'localhost';
         } else {
-            self::$host = 'pmmediasvc.cloudapp.net';
+            self::$host = 'media.comovieticket.jp';
         }
 
         $isDisplayOutput = false;
@@ -104,30 +108,72 @@ class BaseContext
     /**
      * ストリームURL発行お知らせメールを送信する
      *
-     * @param string $mediaCode
-     * @param string $userId
+     * @param array $media
      * @return none
      */
-    public function sendEmail($mediaCode, $userId)
+    public function sendEmail($media)
     {
         $this->logger->log("\n--------------------\n" . 'start function: ' . __FUNCTION__ . "\n--------------------\n");
         $this->logger->log('args: ' . print_r(func_get_args(), true));
 
-        $query = "SELECT email FROM user WHERE id = '{$userId}'";
+        $query = "SELECT email FROM user WHERE id = '{$media['user_id']}'";
         $statement = $this->db->query($query);
         $email = $statement->fetchColumn();
         $this->logger->log('$email:' . $email);
 
         // 送信
         if ($email) {
+            // 言語設定、内部エンコーディング指定
+            mb_language('japanese');
+            mb_internal_encoding('UTF-8');
+
             $host = self::$host;
+            $to = $email;
             $subject = '[ムビチケ動画管理システム]ストリーミングURLが発行されました';
-            $message = "http://{$host}/media/{$mediaCode}";
+            $from = "webmaster@{$host}";
+            $fromname = 'ムビチケ動画管理システム';
+
+            // 改行コードをセット
+            $mime = new Mail_mime("\n");
+            require_once __DIR__ . '/templates/mail_finish_job.php';
+            $mime->setHTMLBody($template);
+
+            // 添付画像
+//             $img  = __DIR__ . '/test.JPG';
+//             $mime->addHTMLImage($img, 'image/jpeg');
+
+            $body_param = array(
+                "head_charset" => "ISO-2022-JP",
+                "text_charset" => "ISO-2022-JP",
+                "html_charset" => "UTF-8",
+            );
+            $body = $mime->get($body_param);
+
+            $headers = array(
+                'To'      => $to,
+//                 'Cc'      => $cc,
+//                 'Bcc'     => $bcc,
+                'From'    => mb_encode_mimeheader($fromname) . '<' . $from . '>',
+                'Subject' => mb_encode_mimeheader($subject)
+            );
+            $header = $mime->headers($headers);
+
+            // 送信
+            $mail = Mail::factory('mail');
+            $return = $mail->send($to, $header, $body);
+            if (PEAR::isError($return)) {
+                $this->logger->log('sendEmail fail. $message:' . print_r($return->getMessage(), true));
+            }
+
+            /*
+            $subject = '[ムビチケ動画管理システム]ストリーミングURLが発行されました';
+            $message = "https://{$host}/media/{$mediaCode}";
             $headers = "From: webmaster@{$host}" . "\r\n"
                      . "Reply-To: webmaster@{$host}";
             if (!mail($email, $subject, $message, $headers)) {
                 $this->logger->log('sendEmail fail. $message:' . print_r($message, true));
             }
+            */
         }
 
         $this->logger->log("\n--------------------\n" . 'end function: ' . __FUNCTION__ . "\n--------------------\n");
