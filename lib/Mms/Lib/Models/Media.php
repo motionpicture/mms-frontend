@@ -83,9 +83,6 @@ class Media
         if (!preg_match("/^\d{1,}$/", $categoryId)) {
             throw new \Exception('invalid category id.');
         }
-        if (!preg_match("/^\d{1,}$/", $userId)) {
-          throw new \Exception('invalid user id.');
-        }
         if (!preg_match("/^\d{1,}$/", $version)) {
           throw new \Exception('invalid version.');
         }
