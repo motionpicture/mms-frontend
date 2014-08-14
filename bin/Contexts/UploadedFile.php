@@ -186,6 +186,8 @@ class UploadedFile extends \Mms\Bin\BaseContext
         $fileInfo = $getID3->analyze(self::$filePath);
         if (isset($fileInfo['playtime_string'])) {
             $options['playtimeString'] = $fileInfo['playtime_string'];
+        } else {
+            $this->logger->log('$getID3->analyze $fileInfo:' . print_r($fileInfo, true));
         }
         if (isset($fileInfo['playtime_seconds'])) {
             $options['playtimeSeconds'] = $fileInfo['playtime_seconds'];
@@ -262,26 +264,32 @@ class UploadedFile extends \Mms\Bin\BaseContext
         }
 
         if (!is_null($assetId)) {
+            $isUploaded = false;
             try {
                 // ファイルのアップロードを実行する
                 $extension = pathinfo(self::$filePath, PATHINFO_EXTENSION);
                 $fileName = sprintf('%s.%s', $mediaId, $extension);
                 $this->upload2storage(basename($asset->getUri()), $fileName, self::$filePath);
 
+                $isUploaded = true;
                 $this->logger->log('file has been uploaded. filePath:' . self::$filePath);
             } catch (\Exception $e) {
-               $this->logger->log('upload2storage throw exception. message:' . $e->getMessage());
+                $this->logger->log('upload2storage throw exception. message:' . $e->getMessage());
             }
 
-            try {
-                // ファイル メタデータの生成
-                $mediaServicesWrapper->createFileInfos($asset);
+            $this->logger->log('$isUploaded:' . print_r($isUploaded, true));
 
-                // ここまできて初めて、アセットの準備が完了したことになる
-                $isCompleted = true;
-                $this->logger->log('inputAsset has been prepared completely. asset:' . $assetId);
-            } catch (\Exception $e) {
-               $this->logger->log('createFileInfos throw exception. message:' . $e->getMessage());
+            if ($isUploaded) {
+                try {
+                    // ファイル メタデータの生成
+                    $mediaServicesWrapper->createFileInfos($asset);
+
+                    // ここまできて初めて、アセットの準備が完了したことになる
+                    $isCompleted = true;
+                    $this->logger->log('inputAsset has been prepared completely. asset:' . $assetId);
+                } catch (\Exception $e) {
+                   $this->logger->log('createFileInfos throw exception. message:' . $e->getMessage());
+                }
             }
         }
 
@@ -343,7 +351,7 @@ class UploadedFile extends \Mms\Bin\BaseContext
      *
      * @return none
      *
-     * @see http://msdn.microsoft.com/en-us/library/windowsazure/dd135726.aspx
+     * @see http://msdn.microsoft.com/ja-jp/library/azure/dd135726.aspx
      */
     private function createBlobBlock($container, $blob, $blockId, $content, $options = null) {
         $this->logger->log("\n--------------------\n" . 'start function: ' . __FUNCTION__ . "\n--------------------\n");
@@ -380,9 +388,8 @@ class UploadedFile extends \Mms\Bin\BaseContext
         $sharedKey = $authSchema->getAuthorizationHeader($headers, $url, $queryParams, $httpMethod);
         $headers['authorization'] = $sharedKey;
 
-        // PUTするためのファイルポインタ作成
-        // なければ作成
-        $tmpDir = __DIR__ . DIRECTORY_SEPARATOR . 'tmp';
+        // PUTするためのファイルポインタ作成(なければ作成)
+        $tmpDir = dirname(__DIR__) . DIRECTORY_SEPARATOR . 'tmp';
         if (!file_exists($tmpDir)) {
             mkdir($tmpDir, 0777);
             chmod($tmpDir, 0777);
@@ -434,11 +441,12 @@ class UploadedFile extends \Mms\Bin\BaseContext
 
         if (!curl_errno($ch)) {
             $info = curl_getinfo($ch);
-            $this->logger->log($info);
+            $this->logger->log('curl_getinfo:' . print_r($info, true));
 
+            // 操作が正常に終了すると、ステータス コード 201 (Created) が返される
             if ($info['http_code'] != '201') {
                 $object = simplexml_load_string($result);
-                $this->logger->log($object);
+                $this->logger->log('curl_getinfo http_code is not 201. $result:' . print_r($object, true));
 
                 $e = new \Exception('upload error: ' . $object->Code . ' ' . $object->Message);
                 curl_close($ch);
@@ -447,7 +455,8 @@ class UploadedFile extends \Mms\Bin\BaseContext
 
             curl_close($ch);
         } else {
-            $e = new \Exception(curl_error($ch));
+            $message = 'curl_errno is not 0. no:' . curl_error($ch);
+            $e = new \Exception($message);
             curl_close($ch);
             throw $e;
         }

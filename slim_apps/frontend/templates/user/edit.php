@@ -6,9 +6,7 @@
 
         <?php if ($message) { ?><p class="error" style="color: #FF0000;"><?php echo $message ?></p><?php } ?>
 
-        <form class="navbar-form" role="search" enctype="multipart/form-data" method="POST">
-            <input type="hidden" name="MAX_FILE_SIZE" value="1000000000" />
-
+        <form enctype="multipart/form-data" method="POST">
             <div class="form-group">
                 <p>
                     <input type="text" name="email" class="form-control" value="<?php echo $defaults['email'] ?>" placeholder="メールアドレス">

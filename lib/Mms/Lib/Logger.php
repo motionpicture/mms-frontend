@@ -49,6 +49,10 @@ class Logger
      */
     public function log($content)
     {
+        if (!is_string($content)) {
+          $content = print_r($content, true);
+        }
+
         $log = $content . "\n";
 
         file_put_contents($this->logFile, $log, FILE_APPEND);

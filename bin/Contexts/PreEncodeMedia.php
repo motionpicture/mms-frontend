@@ -118,6 +118,7 @@ class PreEncodeMedia extends \Mms\Bin\BaseContext
      * 更新する場合
      * タスクの順序や、JobInputAssetとJobOutputAssetのキーナンバーに、気をつけること
      *
+     * @see http://msdn.microsoft.com/ja-jp/library/jj129582.aspx
      * @see http://msdn.microsoft.com/ja-jp/library/dn629573.aspx
      * @return multitype:\WindowsAzure\MediaServices\Models\Task
      */
