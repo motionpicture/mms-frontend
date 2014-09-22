@@ -71,7 +71,7 @@ class InEncodeMedia extends \Mms\Bin\BaseContext
             // メディアサービスよりジョブを取得
             $job = $mediaServicesWrapper->getJob(self::$jobId);
         } catch (\Exception $e) {
-            $message = '$mediaServicesWrapper->getJob() throw exception. message:' . $e->getMessage();
+            $message = '$mediaServicesWrapper->getJob() throw exception. jobId:' . self::$jobId . ' message:' . $e->getMessage();
             $this->logger->log($message);
             $this->reportError($message);
         }
@@ -80,6 +80,7 @@ class InEncodeMedia extends \Mms\Bin\BaseContext
             // ジョブのステータスを更新
             if (self::$jobState == $job->getState()) {
                 // 進捗に変化がなければ終了
+                $this->logger->log('job state unchanging.');
                 return $url;
             }
 
@@ -128,6 +129,7 @@ class InEncodeMedia extends \Mms\Bin\BaseContext
                     }
                 // 未完了の場合、ステータスの更新のみ
                 } else {
+                    $this->logger->log('job state changed.');
                     $query = sprintf("UPDATE media SET job_state = '%s', updated_at = %s WHERE id = '%s'",
                                     $job->getState(),
                                     'datetime(\'now\', \'localtime\')',
@@ -145,6 +147,7 @@ class InEncodeMedia extends \Mms\Bin\BaseContext
             }
         }
 
+        $this->logger->log('$url:' . print_r($url, true));
         $this->logger->log("\n--------------------\n" . 'end function: ' . __FUNCTION__ . "\n--------------------\n");
 
         return $url;
