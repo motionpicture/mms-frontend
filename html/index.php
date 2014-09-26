@@ -305,6 +305,20 @@ $app->get('/media/:id/download', function ($id) use ($app) {
 
         $mediaServicesWrapper = $app->getMediaServicesWrapper();
 
+        // 特定のAssetに対して、同時に5つを超える一意のLocatorを関連付けることはできない
+        // 万が一SASロケーターがあれば削除
+        $oldLocators = $mediaServicesWrapper->getAssetLocators($media['asset_id']);
+        foreach ($oldLocators as $oldLocator) {
+            if ($oldLocator->getType() == WindowsAzure\MediaServices\Models\Locator::TYPE_SAS) {
+                // 期限切れであれば削除
+                $expiration = strtotime('+9 hours', $oldLocator->getExpirationDateTime()->getTimestamp());
+                if ($expiration < strtotime('now')) {
+                    $mediaServicesWrapper->deleteLocator($oldLocator);
+                    $app->log->debug('SAS locator has been deleted. $locator: '. print_r($oldLocator, true));
+                }
+            }
+        }
+
         // 読み取りアクセス許可を持つAccessPolicyの作成
         $accessPolicy = new WindowsAzure\MediaServices\Models\AccessPolicy('DownloadPolicy');
         $accessPolicy->setDurationInMinutes(10); // 10分間有効
@@ -567,7 +581,6 @@ $app->get('/medias/download', function () use ($app) {
         throw new \Exception('ダウンロードに失敗しました');
     }
 
-    ini_set('memory_limit', '1024M');
     $mediaServicesWrapper = $app->getMediaServicesWrapper();
 
     foreach ($mediaIds as $mediaId) {
@@ -583,8 +596,12 @@ $app->get('/medias/download', function () use ($app) {
             $oldLocators = $mediaServicesWrapper->getAssetLocators($media['asset_id']);
             foreach ($oldLocators as $oldLocator) {
                 if ($oldLocator->getType() == WindowsAzure\MediaServices\Models\Locator::TYPE_SAS) {
-                    $mediaServicesWrapper->deleteLocator($oldLocator);
-                    $app->log->debug('SAS locator has been deleted. $locator: '. print_r($oldLocator, true));
+                    // 期限切れであれば削除
+                    $expiration = strtotime('+9 hours', $oldLocator->getExpirationDateTime()->getTimestamp());
+                    if ($expiration < strtotime('now')) {
+                        $mediaServicesWrapper->deleteLocator($oldLocator);
+                        $app->log->debug('SAS locator has been deleted. $locator: '. print_r($oldLocator, true));
+                    }
                 }
             }
 

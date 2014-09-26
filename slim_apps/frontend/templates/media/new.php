@@ -9,7 +9,7 @@
         <?php if ($message) { ?><p class="error" style="color: #FF0000;"><?php echo $message ?></p><?php } ?>
 
         <form class="" role="search" enctype="multipart/form-data" method="POST">
-            <input type="hidden" name="MAX_FILE_SIZE" value="1000000000" />
+            <input type="hidden" name="MAX_FILE_SIZE" value="2000000000" />
 
             <div class="form-group">
                 <p>
