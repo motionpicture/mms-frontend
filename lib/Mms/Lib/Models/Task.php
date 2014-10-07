@@ -64,4 +64,16 @@ class Task
     private $_url;
     private $_createdAt;
     private $_updatedAt;
+
+    /**
+     * タスクに対応するアセット名を取得する
+     *
+     * @param string $mediaId
+     * @param string $taskName
+     * @return string
+     */
+    public static function toAssetName($mediaId, $taskName)
+    {
+        return $mediaId . '[' . $taskName . ']';
+    }
 }

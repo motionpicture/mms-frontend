@@ -135,7 +135,7 @@ class PreEncodeMedia extends \Mms\Bin\BaseContext
             'JobInputAsset(0)',
             'JobOutputAsset(0)',
             Asset::OPTIONS_NONE,
-            \Mms\Lib\Models\Task::NAME_ADAPTIVE_BITRATE_MP4
+            \Mms\Lib\Models\Task::toAssetName(self::$mediaId, \Mms\Lib\Models\Task::NAME_ADAPTIVE_BITRATE_MP4)
         );
         $task = new Task($taskBody, $mediaProcessor->getId(), TaskOptions::NONE);
         $task->setConfiguration('H264 Adaptive Bitrate MP4 Set 1080p');
@@ -177,7 +177,7 @@ class PreEncodeMedia extends \Mms\Bin\BaseContext
           'JobInputAsset(0)',
           'JobOutputAsset(0)',
           Asset::OPTIONS_NONE,
-          \Mms\Lib\Models\Task::NAME_ADAPTIVE_BITRATE_MP4
+          \Mms\Lib\Models\Task::toAssetName(self::$mediaId, \Mms\Lib\Models\Task::NAME_ADAPTIVE_BITRATE_MP4)
       );
       $this->logger->log('$taskBody: ' . $taskBody);
       $task = new Task($taskBody, $mediaProcessor->getId(), TaskOptions::NONE);

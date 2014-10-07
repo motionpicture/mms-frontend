@@ -78,13 +78,13 @@ class Media
     {
         // 値の妥当性チェック
         if (!preg_match("/^\d{6}$/", $mcode)) {
-            throw new \Exception('invalid mcode.');
+            throw new \Exception('Mms\Lib\Models\Media cannot be constructed with given mcode.');
         }
         if (!preg_match("/^\d{1,}$/", $categoryId)) {
-            throw new \Exception('invalid category id.');
+            throw new \Exception('Mms\Lib\Models\Media cannot be constructed with given category id.');
         }
         if (!preg_match("/^\d{1,}$/", $version)) {
-          throw new \Exception('invalid version.');
+            throw new \Exception('Mms\Lib\Models\Media cannot be constructed with given version.');
         }
 
         $this->_mcode = $mcode;

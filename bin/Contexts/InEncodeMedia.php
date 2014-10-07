@@ -161,11 +161,11 @@ class InEncodeMedia extends \Mms\Bin\BaseContext
     private function getAssetNames4deliver()
     {
         return [
-            \Mms\Lib\Models\Task::NAME_ADAPTIVE_BITRATE_MP4,
-//             \Mms\Lib\Models\Task::NAME_SMOOTH_STREAMING,
-//             \Mms\Lib\Models\Task::NAME_SMOOTH_STREAMING_PLAYREADY,
-//             \Mms\Lib\Models\Task::NAME_HLS,
-//             \Mms\Lib\Models\Task::NAME_HLS_PLAYREADY
+            \Mms\Lib\Models\Task::toAssetName(self::$id, \Mms\Lib\Models\Task::NAME_ADAPTIVE_BITRATE_MP4),
+//             \Mms\Lib\Models\Task::toAssetName(self::$id, \Mms\Lib\Models\Task::NAME_SMOOTH_STREAMING),
+//             \Mms\Lib\Models\Task::toAssetName(self::$id, \Mms\Lib\Models\Task::NAME_SMOOTH_STREAMING_PLAYREADY),
+//             \Mms\Lib\Models\Task::toAssetName(self::$id, \Mms\Lib\Models\Task::NAME_HLS),
+//             \Mms\Lib\Models\Task::toAssetName(self::$id, \Mms\Lib\Models\Task::NAME_HLS_PLAYREADY)
         ];
     }
 
@@ -211,14 +211,14 @@ class InEncodeMedia extends \Mms\Bin\BaseContext
         $urls = [];
         switch ($assetName) {
             // adaptive bitrate mp4のアセットからは、mpeg dash, smooth streaming, hlsの3つのURLを生成
-            case \Mms\Lib\Models\Task::NAME_ADAPTIVE_BITRATE_MP4:
+            case \Mms\Lib\Models\Task::toAssetName(self::$id, \Mms\Lib\Models\Task::NAME_ADAPTIVE_BITRATE_MP4):
                 $urls[\Mms\Lib\Models\Task::NAME_MPEG_DASH] = sprintf('%s%s.ism/Manifest(format=mpd-time-csf)', $locator->getPath(), self::$id);
                 $urls[\Mms\Lib\Models\Task::NAME_SMOOTH_STREAMING] = sprintf('%s%s.ism/Manifest', $locator->getPath(), self::$id);
                 $urls[\Mms\Lib\Models\Task::NAME_HLS] = sprintf('%s%s.ism/Manifest(format=m3u8-aapl)', $locator->getPath(), self::$id);
                 break;
-//             case \Mms\Lib\Models\Task::NAME_HLS:
-//             case \Mms\Lib\Models\Task::NAME_HLS_PLAYREADY:
-//                 $urls[$assetName] = sprintf('%s%s-m3u8-aapl.ism/Manifest(format=m3u8-aapl)', $locator->getPath(), $mediaId);
+//             case \Mms\Lib\Models\Task::toAssetName(self::$id, \Mms\Lib\Models\Task::NAME_HLS):
+//             case \Mms\Lib\Models\Task::toAssetName(self::$id, \Mms\Lib\Models\Task::NAME_HLS_PLAYREADY):
+//                 $urls[$assetName] = sprintf('%s%s-m3u8-aapl.ism/Manifest(format=m3u8-aapl)', $locator->getPath(), self::$id);
 //                 break;
             default:
                 break;

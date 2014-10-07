@@ -153,6 +153,14 @@ class UploadedFile extends \Mms\Bin\BaseContext
         $startAt = '';
         $endAt = '';
 
+        // カテゴリー存在チェック
+        $query = "SELECT COUNT(id) AS count FROM category WHERE id = '{$categoryId}'";
+        $statement = $this->db->query($query);
+        $count = $statement->fetchColumn();
+        if ($count < 1) {
+            throw new \Exception('Category Id:' . $categoryId . ' does not exist.');
+        }
+
         // バージョンを確定
         $query = "SELECT MAX(version) AS max_version FROM media WHERE mcode = '{$mcode}' AND category_id = '{$categoryId}'";
         $statement = $this->db->query($query);
@@ -226,6 +234,7 @@ class UploadedFile extends \Mms\Bin\BaseContext
         }
 
         // メディアオブジェクト生成
+        $this->logger->log('$options: ' . print_r($options, true));
         $media = \Mms\Lib\Models\Media::createFromOptions($options);
 
         $this->logger->log('$media: ' . print_r($media, true));
