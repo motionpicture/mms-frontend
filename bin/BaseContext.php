@@ -119,7 +119,7 @@ class BaseContext
         $query = "SELECT email FROM user WHERE id = '{$media['user_id']}'";
         $statement = $this->db->query($query);
         $email = $statement->fetchColumn();
-        $this->logger->log('$email:' . $email);
+        $this->logger->debug('$email:' . $email);
 
         // 送信
         if ($email) {
@@ -174,6 +174,59 @@ class BaseContext
                 $this->logger->log('sendEmail fail. $message:' . print_r($message, true));
             }
             */
+        }
+
+        $this->logger->log("\n--------------------\n" . 'end function: ' . __FUNCTION__ . "\n--------------------\n");
+    }
+
+    /**
+     * エラー通知メールを送信する
+     *
+     * @param string $to
+     * @param string $message
+     * @return none
+     */
+    public function sendErrorMail($to, $message)
+    {
+        $this->logger->log("\n--------------------\n" . 'start function: ' . __FUNCTION__ . "\n--------------------\n");
+        $this->logger->debug('args: ' . print_r(func_get_args(), true));
+
+        // 送信
+        if ($to) {
+            // 言語設定、内部エンコーディング指定
+            mb_language('japanese');
+            mb_internal_encoding('UTF-8');
+
+            $host = self::$host;
+            $subject = '[ムビチケ動画管理システム]エラー通知';
+            $from = "webmaster@{$host}";
+            $fromname = 'ムビチケ動画管理システム';
+
+            // 改行コードをセット
+            $mime = new Mail_mime("\n");
+            require_once __DIR__ . '/templates/mail_error.php';
+            $mime->setHTMLBody($template);
+
+            $body_param = array(
+                "head_charset" => "ISO-2022-JP",
+                "text_charset" => "ISO-2022-JP",
+                "html_charset" => "UTF-8",
+            );
+            $body = $mime->get($body_param);
+
+            $headers = array(
+                'To'      => $to,
+                'From'    => mb_encode_mimeheader($fromname) . '<' . $from . '>',
+                'Subject' => mb_encode_mimeheader($subject)
+            );
+            $header = $mime->headers($headers);
+
+            // 送信
+            $mail = Mail::factory('mail');
+            $return = $mail->send($to, $header, $body);
+            if (PEAR::isError($return)) {
+                $this->logger->log('sendErrorMail fail. $message:' . print_r($return->getMessage(), true));
+            }
         }
 
         $this->logger->log("\n--------------------\n" . 'end function: ' . __FUNCTION__ . "\n--------------------\n");

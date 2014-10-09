@@ -40,6 +40,13 @@ class UploadedFile extends \Mms\Bin\BaseContext
     private static $filePath = null;
 
     /**
+     * アップロードしたユーザー
+     *
+     * @var array
+     */
+    private static $user = null;
+
+    /**
      * __construct
      *
      * @see http://php.net/manual/ja/features.file-upload.common-pitfalls.php
@@ -56,7 +63,18 @@ class UploadedFile extends \Mms\Bin\BaseContext
             throw new \Exception('file does not exists.');
         }
 
+        // ユーザーの存在確認
+        $userId = pathinfo(pathinfo($filePath, PATHINFO_DIRNAME), PATHINFO_FILENAME);
+        $query = "SELECT * FROM user WHERE id = '{$userId}'";
+        $statement = $this->db->query($query);
+        $user = $statement->fetch();
+        if (!$user) {
+            throw new \Exception('user:' . $userId . ' does not exist.');
+        }
+        $this->logger->debug('user:' . print_r($user, true));
+
         self::$filePath = $filePath;
+        self::$user = $user;
     }
 
     /**
@@ -88,6 +106,11 @@ class UploadedFile extends \Mms\Bin\BaseContext
             $this->logger->log($message);
             $this->reportError($message);
 
+            // アップロードユーザーにも通知
+            $user = self::$user;
+            $message = $user['id'] . '様<br><br>以下のファイルをメディアサービスへアップロードすることができませんでした。<br>おそれいりますが、再度ファイルのアップロードをお願いいたします。<br><br>' . pathinfo(self::$filePath, PATHINFO_BASENAME);
+            $this->sendErrorMail($user['email'], $message);
+
             $mediaId = null;
             $assetId = null;
         }
@@ -110,6 +133,11 @@ class UploadedFile extends \Mms\Bin\BaseContext
             $message = 'inserting into media throw exception. $mediaId:' . $mediaId . ' $$assetId:' . $assetId . ' message:' . $e->getMessage();
             $this->logger->log($message);
             $this->reportError($message);
+
+            // アップロードユーザーにも通知
+            $user = self::$user;
+            $message = $user['id'] . '様<br><br>以下のファイルを正常にエンコードタスクにかけることができませんでした。<br>おそれいりますが、再度ファイルのアップロードをお願いいたします。<br><br>' . pathinfo(self::$filePath, PATHINFO_BASENAME);
+            $this->sendErrorMail($user['email'], $message);
 
             $mediaId = null;
             $assetId = null;
