@@ -40,7 +40,7 @@ $template = <<<HTML
                 </tr>
             </tbody>
         </table>
-        <p>詳細は<a href="https://{$host}/media/{$media['code']}">コチラ</a></p>
+        <p>詳細は<a href="{$url}">コチラ</a></p>
     </body>
     </html>
 HTML;

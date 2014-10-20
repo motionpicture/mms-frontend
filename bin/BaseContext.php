@@ -40,6 +40,8 @@ class BaseContext
         if (self::$mode == 'development') {
             self::$isDev = true;
             self::$host = 'localhost';
+        } else if (self::$mode == 'staging') {
+            self::$host = 'tmmediasvc.cloudapp.net';
         } else {
             self::$host = 'media.comovieticket.jp';
         }
@@ -133,6 +135,15 @@ class BaseContext
             $from = "webmaster@{$host}";
             $fromname = 'ムビチケ動画管理システム';
 
+            $mediaCode = $media['code'];
+            if (self::$mode == 'development') {
+                $url = "http://{$host}/media/{$mediaCode}";
+            } else if (self::$mode == 'staging') {
+                $url = "http://{$host}/media/{$mediaCode}";
+            } else {
+                $url = "https://{$host}/media/{$mediaCode}";
+            }
+
             // 改行コードをセット
             $mime = new Mail_mime("\n");
             require_once __DIR__ . '/templates/mail_finish_job.php';
@@ -197,10 +208,13 @@ class BaseContext
             mb_language('japanese');
             mb_internal_encoding('UTF-8');
 
+            $errorsIniArray = parse_ini_file(__DIR__ . '/../config/errors.ini', true);
+            $errorsConfig = $errorsIniArray[$this->getMode()];
+
             $host = self::$host;
-            $subject = '[ムビチケ動画管理システム]エラー通知';
+            $subject = $errorsConfig['subject'];
             $from = "webmaster@{$host}";
-            $fromname = 'ムビチケ動画管理システム';
+            $fromname = $errorsConfig['fromname'];
 
             // 改行コードをセット
             $mime = new Mail_mime("\n");

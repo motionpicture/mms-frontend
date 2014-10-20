@@ -136,7 +136,7 @@ class UploadedFile extends \Mms\Bin\BaseContext
 
             // アップロードユーザーにも通知
             $user = self::$user;
-            $message = $user['id'] . '様<br><br>以下のファイルを正常にエンコードタスクにかけることができませんでした。<br>おそれいりますが、再度ファイルのアップロードをお願いいたします。<br><br>' . pathinfo(self::$filePath, PATHINFO_BASENAME);
+            $message = $user['id'] . '様<br><br>以下のファイルを正常にエンコードタスクにかけることができませんでした。<br>おそれいりますが、再度ファイルのアップロードをお願いいたします。<br><br>ファイル名:' . pathinfo(self::$filePath, PATHINFO_BASENAME);
             $this->sendErrorMail($user['email'], $message);
 
             $mediaId = null;
@@ -173,6 +173,10 @@ class UploadedFile extends \Mms\Bin\BaseContext
 
         // アップロードされた場合、作品コード_カテゴリーID.拡張子というファイル
         $fileNameParts = explode('_', $fileName);
+        if (!isset($fileNameParts[0]) || !isset($fileNameParts[1])) {
+            throw new \Exception('Path:' . $path . ' is not validate.');
+        }
+
         $mcode = $fileNameParts[0];
         $categoryId = $fileNameParts[1];
         $userId = pathinfo(pathinfo($path, PATHINFO_DIRNAME), PATHINFO_FILENAME);
