@@ -34,7 +34,7 @@ try {
     $context->logger->log('selecting medias throw exception. message:' . $e->getMessage());
 }
 
-$context->logger->log('$medias2reset:' . count($medias2reset));
+$context->logger->log('$medias2reset:' . print_r($medias2reset, true));
 
 require_once __DIR__ . '/Contexts/PostEncodeMedia.php';
 foreach ($medias2reset as $media) {

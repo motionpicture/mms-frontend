@@ -69,10 +69,9 @@ class PostEncodeMedia extends \Mms\Bin\BaseContext
     {
         $this->logger->log("\n--------------------\n" . 'start function: ' . __FUNCTION__ . "\n--------------------\n");
 
-        // ジョブキャンセル&資産削除
+        // 失敗orキャンセル済みor完了のジョブをキャンセルしようとすると例外が投げられるので、チェックしてからキャンセル
         $result = false;
         try {
-            // 失敗orキャンセル済みor完了のジョブをキャンセルしようとすると例外が投げられるので、チェックしてからキャンセル
             $mediaServicesWrapper = $this->azureContext->getMediaServicesWrapper();
             $jobState = $mediaServicesWrapper->getJobStatus(self::$jobId);
             if ($jobState == Job::STATE_QUEUED
@@ -80,16 +79,19 @@ class PostEncodeMedia extends \Mms\Bin\BaseContext
              || $jobState == Job::STATE_PROCESSING) {
                 $mediaServicesWrapper->cancelJob(self::$jobId);
             }
-
-            $this->deleteOutputAssets(self::$jobId);
-            $result = $this->resetMedias([self::$mediaId]);
         } catch (\Exception $e) {
             $message = 'reset throw exception. message:' . $e->getMessage();
             $this->logger->log($message);
             $this->reportError($message);
         }
 
-        $this->logger->log('post2pre $result:' . print_r($result, true));
+        // 資産削除
+        $this->deleteOutputAssets(self::$jobId);
+
+        // DBリセット
+        $result = $this->resetMedias([self::$mediaId]);
+
+        $this->logger->log('post2pre $result:' . var_export($result, true));
         $this->logger->log("\n--------------------\n" . 'end function: ' . __FUNCTION__ . "\n--------------------\n");
 
         return $result;

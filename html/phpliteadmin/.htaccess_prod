@@ -1,0 +1,19 @@
+RewriteEngine On
+
+# Some hosts may require you to use the `RewriteBase` directive.
+# If you need to use the `RewriteBase` directive, it should be the
+# absolute physical path to the directory that contains this htaccess file.
+#
+# RewriteBase /
+
+RewriteCond %{REQUEST_FILENAME} !-f
+RewriteRule ^ index.php [QSA,L]
+
+#AuthUserFile C:\Develop\workspace\mms\src\.htpasswd
+#AuthGroupFile /dev/null
+#AuthName "Input ID and Password."
+#AuthType Basic
+#require valid-user
+#<Files ~ "^.(htpasswd|htaccess)$">
+#deny from all
+#</Files>
