@@ -118,7 +118,10 @@ class PreEncodeMedia extends \Mms\Bin\BaseContext
      * 更新する場合
      * タスクの順序や、JobInputAssetとJobOutputAssetのキーナンバーに、気をつけること
      *
-     * @see http://msdn.microsoft.com/ja-jp/library/jj129582.aspx
+     *　Azure Media Services プロセッサ
+     * @see http://msdn.microsoft.com/ja-jp/library/azure/dn673582.aspx
+     * 
+     * @see http://msdn.microsoft.com/ja-jp/library/dn619392.aspx
      * @see http://msdn.microsoft.com/ja-jp/library/dn629573.aspx
      * @return multitype:\WindowsAzure\MediaServices\Models\Task
      */
@@ -130,7 +133,7 @@ class PreEncodeMedia extends \Mms\Bin\BaseContext
         $mediaServicesWrapper = $this->azureContext->getMediaServicesWrapper();
 
         // adaptive bitrate mp4
-        $mediaProcessor = $mediaServicesWrapper->getLatestMediaProcessor('Windows Azure Media Encoder');
+        $mediaProcessor = $mediaServicesWrapper->getLatestMediaProcessor('Azure Media Encoder');
         $taskBody = $this->getMediaServicesTaskBody(
             'JobInputAsset(0)',
             'JobOutputAsset(0)',
