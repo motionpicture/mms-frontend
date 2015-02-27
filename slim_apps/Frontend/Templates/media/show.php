@@ -4,18 +4,6 @@
 <script src="/js/dash.all.js"></script>
 <script src="/js/Silverlight.js"></script>
 
-<script>
-// ユーザーエージェントの判別
-var ua = {};
-ua.name = window.navigator.userAgent.toLowerCase();
-ua.isiPhone = ua.name.indexOf('iphone') >= 0;
-ua.isiPod = ua.name.indexOf('ipod') >= 0;
-ua.isiPad = ua.name.indexOf('ipad') >= 0;
-ua.isiOS = (ua.isiPhone || ua.isiPod || ua.isiPad);
-ua.isAndroid = ua.name.indexOf('android') >= 0;
-ua.isTablet = (ua.isiPad || (ua.isAndroid && ua.name.indexOf('mobile') < 0));
-</script>
-
 <div class="row">
     <div class="main">
         <h1 class="page-header">メディア詳細</h1>
@@ -139,91 +127,39 @@ ua.isTablet = (ua.isiPad || (ua.isAndroid && ua.name.indexOf('mobile') < 0));
 
             <div class="col-xs-12 col-sm-6 col-lg-6">
                 <?php if ($media['urls'][\Mms\Lib\Models\Task::NAME_MPEG_DASH]) { ?>
-                <?php $mpegDashPlayerId = 'mpegDashPlayer_ver' . $media['version'] ?>
-                <script>
-                $(function(){
-                    // Media Source Extension対応ブラウザのみ
-                    // https://dvcs.w3.org/hg/html-media/raw-file/default/media-source/media-source.html
-                    var url = '<?php echo $media['urls'][\Mms\Lib\Models\Task::NAME_MPEG_DASH] ?>';
-                    if (typeof MediaSource == 'function') {
-                        var context = new Dash.di.DashContext();
-                        var player = new MediaPlayer(context);
-                        player.startup();
-                        player.attachView($('#<?php echo $mpegDashPlayerId ?>').get(0));
-                        player.setAutoPlay(false);
-                        player.attachSource(url);
-                    } else {
-                    	$('#<?php echo $mpegDashPlayerId ?>').replaceWith('<p>mpeg dash非対応ブラウザです</p>');
-                    }
-                });
-                </script>
+                <?php $playerId = 'mpegDashPlayer_ver' . $media['version'] ?>
+                <?php require __DIR__ . '/player/mpegDash.php' ?>
                 <div class="row placeholders">
-                    <video width="280"
-                           height="210"
-                           id="<?php echo $mpegDashPlayerId ?>"
-                           controls>MPEG DASH</video>
-                    <h4>MPEG DASH on HTML5</h4>
-                    <span class="text-muted"></span>
+                  <?php echo $code ?>
+                  <h4>MPEG DASH on HTML5</h4>
+                  <span class="text-muted">IE11（Windows 8.1限定）以降、Chrome v23以降、Windows8 Applicationが対応。</span>
                 </div>
+                <pre><code>&lt;script src="/js/dash.all.js"&gt;
+<?php echo htmlspecialchars($code) ?></code></pre>
                 <?php } ?>
 
                 <?php if ($media['urls'][\Mms\Lib\Models\Task::NAME_SMOOTH_STREAMING]) { ?>
-                <?php $smoothStreamingPlayerId = 'smoothStreamingPlayer_ver' . $media['version'] ?>
-                <script>
-                $(function(){
-                    // スマホ端末ではpreloadできないため、自動的にボタンをオンにできない
-                    if (!ua.isiOS && !ua.isAndroid && !ua.isTablet) {
-                        Silverlight.createObject(
-                            '/smoothstreamingplayer-2.2010.1001.1/SmoothStreamingPlayer.xap',
-                            $('#<?php echo $smoothStreamingPlayerId ?>').get(0),
-                            'silverlight_smoothStreamingPlayer_ver<?php echo $media['version'] ?>',
-                            {
-                                width: '280',
-                                height: '210',
-                                autoUpgrade: 'true',
-                                minRuntimeVersion: '4.0.50401.0',
-                                background: '#FFFFFF',
-                            },
-                            {
-                                onError: null,
-                                onLoad: null
-                            },
-                            'mediaurl=<?php echo $media['urls'][\Mms\Lib\Models\Task::NAME_SMOOTH_STREAMING] ?>,autoplay=false',
-                            null
-                        );
-                    } else {
-                    	$('#<?php echo $smoothStreamingPlayerId ?>').replaceWith('<p>Silverlight非対応ブラウザです</p>');
-                    }
-                });
-                </script>
+                <?php $playerId = 'smoothStreamingPlayer_ver' . $media['version'] ?>
+                <?php require __DIR__ . '/player/smoothStreaming.php' ?>
                 <div class="row placeholders">
-                    <div id="<?php echo $smoothStreamingPlayerId ?>"></div>
+                    <?php echo $code ?>
                     <h4>Smooth Streaming on Silverlight</h4>
                     <span class="text-muted">http://msdn.microsoft.com/ja-jp/library/cc838126(v=vs.95).aspx</span>
+                    <span class="text-muted">スマホやタブレット非対応。</span>
                 </div>
+                <pre><code>&lt;script src="/js/Silverlight.js"&gt;</script>
+<?php echo htmlspecialchars($code) ?></code></pre>
                 <?php } ?>
 
                 <?php if ($media['urls'][\Mms\Lib\Models\Task::NAME_HLS]) { ?>
-                <?php $hlsPlayerId = 'hlsPlayer_ver' . $media['version'] ?>
-                <script>
-                $(function(){
-                    var url = '<?php echo $media['urls'][\Mms\Lib\Models\Task::NAME_HLS] ?>';
-                    // スマホ端末ではpreloadできないため、自動的にボタンをオンにできない
-                    if (ua.isiOS || ua.isAndroid || ua.isTablet) {
-                        $('#<?php echo $hlsPlayerId ?>').attr('src', url);
-                    } else {
-                        $('#<?php echo $hlsPlayerId ?>').replaceWith('<p>Http Live Streaming非対応ブラウザです</p>');
-                    }
-                });
-                </script>
+                <?php $playerId = 'hlsPlayer_ver' . $media['version'] ?>
+                <?php require __DIR__ . '/player/httpLiveStreaming.php' ?>
                 <div class="row placeholders">
-                    <video width="280"
-                           height="210"
-                           id = "<?php echo $hlsPlayerId ?>"
-                           controls>HLS</video>
+                    <?php echo $code ?>
                     <h4>Http Live Streaming on HTML5</h4>
-                    <span class="text-muted"></span>
+                    <span class="text-muted">MacOS X10.6以降のSafari、iOS、Androidが対応。</span>
                 </div>
+                <pre><code><?php echo htmlspecialchars($code) ?></code></pre>
                 <?php } ?>
 
             </div>
