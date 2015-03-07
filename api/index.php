@@ -1,9 +1,9 @@
 <?php
-require_once dirname(__FILE__) . '/../../slim_apps/Api/Lib/Slim.php';
+require_once dirname(__FILE__) . '/../slim_apps/Api/Lib/Slim.php';
 
 $app = new \Mms\Api\Lib\Slim([
     'log.enable' => true,
-    'templates.path' => dirname(__FILE__) . '/../../slim_apps/Api/Templates'
+    'templates.path' => dirname(__FILE__) . '/../slim_apps/Api/Templates'
 ]);
 
 $app->hook('slim.before', function () use ($app) {
