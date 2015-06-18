@@ -25,10 +25,12 @@
         "motionpicture/mvtkservice" : "dev-master",
         "slim/slim": "2.*",
         "microsoft/windowsazure": "*",
-        "jamesheinrich/getid3" : "dev-master",
-        "pear-pear.php.net/PEAR" : "*",
-        "pear-pear.php.net/Mail" : "*",
-        "pear-pear.php.net/Mail_Mime" : "*"
+        "pear-pear.php.net/http_request2": "*",
+        "pear-pear.php.net/pear" : "*",
+        "pear-pear.php.net/mail" : "*",
+        "pear-pear.php.net/mail_mime": "*",
+        "pear-pear.php.net/mail_mimedecode": "*",
+        "jamesheinrich/getid3" : "dev-master"
     },
     "require-dev": {
         "codeception/codeception": "*",

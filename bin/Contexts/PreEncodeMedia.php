@@ -133,7 +133,7 @@ class PreEncodeMedia extends \Mms\Bin\BaseContext
         $mediaServicesWrapper = $this->azureContext->getMediaServicesWrapper();
 
         // adaptive bitrate mp4
-        $mediaProcessor = $mediaServicesWrapper->getLatestMediaProcessor('Azure Media Encoder');
+        $mediaProcessor = $mediaServicesWrapper->getLatestMediaProcessor(\Mms\Lib\AzureContext::MEDIA_SERVICES_PROCESSOR_NAME_ENCODER);
         $taskBody = $this->getMediaServicesTaskBody(
             'JobInputAsset(0)',
             'JobOutputAsset(0)',
@@ -175,7 +175,7 @@ class PreEncodeMedia extends \Mms\Bin\BaseContext
       $mediaServicesWrapper = $this->azureContext->getMediaServicesWrapper();
 
        // adaptive bitrate mp4
-      $mediaProcessor = $mediaServicesWrapper->getLatestMediaProcessor('Windows Azure Media Encoder');
+      $mediaProcessor = $mediaServicesWrapper->getLatestMediaProcessor(\Mms\Lib\AzureContext::MEDIA_SERVICES_PROCESSOR_NAME_ENCODER);
       $taskBody = $this->getMediaServicesTaskBody(
           'JobInputAsset(0)',
           'JobOutputAsset(0)',

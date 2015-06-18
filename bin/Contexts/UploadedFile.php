@@ -26,13 +26,6 @@ ini_set('memory_limit', '1024M');
 class UploadedFile extends \Mms\Bin\BaseContext
 {
     /**
-     * 大きなサイズのファイルを小分けにしてアップロードする際の、分割ファイルサイズ
-     *
-     * @var int
-     */
-    const CHUNK_SIZE = 1048576; // 1024 * 1024
-
-    /**
      * アップロードされたファイルパス
      *
      * @var string
@@ -310,7 +303,13 @@ class UploadedFile extends \Mms\Bin\BaseContext
                 // ファイルのアップロードを実行する
                 $extension = pathinfo(self::$filePath, PATHINFO_EXTENSION);
                 $fileName = sprintf('%s.%s', $mediaId, $extension);
-                $this->upload2storage(basename($asset->getUri()), $fileName, self::$filePath);
+
+                $this->logger->log('creating BlockBlob... filePath:' . self::$filePath);
+                $content = fopen(self::$filePath, 'rb');
+                $blobServicesWrapper = $this->azureContext->getBlobServicesWrapper();
+                $result = $blobServicesWrapper->createBlockBlob(basename($asset->getUri()), $fileName, $content);
+                $this->logger->debug('BlockBlob has been created. result:' . var_export($result, true));
+                fclose($content);
 
                 $isUploaded = true;
                 $this->logger->log('file has been uploaded. filePath:' . self::$filePath);
@@ -337,172 +336,6 @@ class UploadedFile extends \Mms\Bin\BaseContext
         $this->logger->log("\n--------------------\n" . 'end function: ' . __FUNCTION__ . "\n--------------------\n");
 
         return [$assetId, $isCompleted];
-    }
-
-    /**
-     * ストレージサービスを使用してアップロードする
-     *
-     * @see http://msdn.microsoft.com/ja-jp/library/windowsazure/dd179439.aspx
-     * @param string $containerName    コンテナー名
-     * @param string $name             ブロブ名
-     * @param string $path             Uploading content path
-     *
-     * @return none
-     */
-    private function upload2storage($containerName, $blobName, $path)
-    {
-        $this->logger->log("\n--------------------\n" . 'start function: ' . __FUNCTION__ . "\n--------------------\n");
-        $this->logger->log('args: ' . print_r(func_get_args(), true));
-
-        $blobRestProxy = $this->azureContext->getBlobServicesWrapper();
-
-        $content = fopen($path, 'rb');
-        $counter = 1;
-        $blockIds = [];
-        while (!feof($content)) {
-            $blockId = str_pad($counter, 6, '0', STR_PAD_LEFT);
-            $block = new Block();
-            $block->setBlockId(base64_encode($blockId));
-            $block->setType(BlobBlockType::UNCOMMITTED_TYPE);
-            array_push($blockIds, $block);
-
-            $data = fread($content, self::CHUNK_SIZE);
-            $this->createBlobBlock($containerName, $blobName, base64_encode($blockId), $data);
-
-            $this->logger->log('BlobBlock has been created. counter: ' . $counter);
-            $counter++;
-        }
-        fclose($content);
-        $result = $blobRestProxy->commitBlobBlocks($containerName, $blobName, $blockIds);
-
-        $this->logger->log('BlobBlocks has been commit. result: ' . print_r($result, true));
-        $this->logger->log("\n--------------------\n" . 'end function: ' . __FUNCTION__ . "\n--------------------\n");
-    }
-
-    /**
-     * Creates a new block to be committed as part of a block blob.
-     *
-     * @param string                        $container name of the container
-     * @param string                        $blob      name of the blob
-     * @param string                        $blockId   must be less than or equal to
-     * 64 bytes in size. For a given blob, the length of the value specified for the
-     * blockid parameter must be the same size for each block.
-     * @param string                        $content   the blob block contents
-     * @param Models\CreateBlobBlockOptions $options   optional parameters
-     *
-     * @return none
-     *
-     * @see http://msdn.microsoft.com/ja-jp/library/azure/dd135726.aspx
-     */
-    private function createBlobBlock($container, $blob, $blockId, $content, $options = null) {
-        $this->logger->log("\n--------------------\n" . 'start function: ' . __FUNCTION__ . "\n--------------------\n");
-        $this->logger->log('$container: ' . $container);
-        $this->logger->log('$blob: ' . $blob);
-        $this->logger->log('$blockId: ' . $blockId);
-        $this->logger->log('$content length: ' . strlen($content));
-        $this->logger->log('$options: ' . print_r($options, true));
-
-        $blobRestProxy = $this->azureContext->getBlobServicesWrapper();
-        $url = sprintf('%s/%s/%s',
-                        $blobRestProxy->getUri(),
-                        $container,
-                        $blob);
-
-        $headers = [
-            'content-type'   => 'application/x-www-form-urlencoded',
-            'content-length' => strlen($content),
-            'user-agent'     => "Azure-SDK-For-PHP/0.4.0",
-            'x-ms-version'   => '2011-08-18',
-            'date'           => gmdate('D, d M Y H:i:s T', time()),
-        ];
-
-        $queryParams = [
-            'comp'    => 'block',
-            'blockid' => base64_encode($blockId)
-        ];
-
-        $httpMethod = 'PUT';
-
-        $url .= '?' . http_build_query($queryParams);
-
-        $authSchema = $this->azureContext->getBlobAuthenticationScheme();
-        $sharedKey = $authSchema->getAuthorizationHeader($headers, $url, $queryParams, $httpMethod);
-        $headers['authorization'] = $sharedKey;
-
-        // PUTするためのファイルポインタ作成(なければ作成)
-        $tmpDir = dirname(__DIR__) . DIRECTORY_SEPARATOR . 'tmp';
-        if (!file_exists($tmpDir)) {
-            mkdir($tmpDir, 0777);
-            chmod($tmpDir, 0777);
-        }
-        $tmpFile = $tmpDir . DIRECTORY_SEPARATOR . pathinfo($blob, PATHINFO_FILENAME);
-        $fp = fopen($tmpFile, 'w+');
-        if ($fp === false) {
-            $egl = error_get_last();
-            $e = new \Exception('cannot open file: ' . $egl['message']);
-            throw $e;
-        }
-        fwrite($fp, $content);
-        fclose($fp);
-
-        $fp = fopen($tmpFile, 'rb');
-        if ($fp === false) {
-            $egl = error_get_last();
-            $e = new \Exception('cannot open file: ' . $egl['message']);
-            throw $e;
-        }
-
-        $curlHeaders = [];
-        foreach ($headers as $name => $value) {
-            $canonicalName = implode('-', array_map('ucfirst', explode('-', $name)));
-            $curlHeaders[]  = $canonicalName . ': ' . $value;
-        }
-
-        $ch = curl_init($url);
-        $options = [
-            CURLOPT_HTTPHEADER     => $curlHeaders,
-            CURLOPT_PUT            => true,
-            CURLOPT_INFILE         => $fp,
-            CURLOPT_INFILESIZE     => strlen($content),
-            CURLOPT_RETURNTRANSFER => 1,
-            CURLOPT_BINARYTRANSFER => 1,
-            CURLOPT_SSL_VERIFYPEER => false,
-            CURLOPT_SSLVERSION     => 3,
-            CURLOPT_CONNECTTIMEOUT => 300,
-            CURLOPT_TIMEOUT        => 0
-        ];
-        curl_setopt_array($ch, $options);
-
-        $result = curl_exec($ch);
-        $this->logger->debug('result of creating blob block: ' . print_r($result, true));
-        fclose($fp);
-
-        // 一時ファイルを削除
-        unlink($tmpFile);
-
-        if (!curl_errno($ch)) {
-            $info = curl_getinfo($ch);
-            $this->logger->log('curl_getinfo:' . print_r($info, true));
-
-            // 操作が正常に終了すると、ステータス コード 201 (Created) が返される
-            if ($info['http_code'] != '201') {
-                $object = simplexml_load_string($result);
-                $this->logger->log('curl_getinfo http_code is not 201. $result:' . print_r($object, true));
-
-                $e = new \Exception('upload error: ' . $object->Code . ' ' . $object->Message);
-                curl_close($ch);
-                throw $e;
-            }
-
-            curl_close($ch);
-        } else {
-            $message = 'curl_errno is not 0. no:' . curl_error($ch);
-            $e = new \Exception($message);
-            curl_close($ch);
-            throw $e;
-        }
-
-        $this->logger->log("\n--------------------\n" . 'end function: ' . __FUNCTION__ . "\n--------------------\n");
     }
 }
 

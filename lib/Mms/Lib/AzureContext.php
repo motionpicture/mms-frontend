@@ -3,6 +3,8 @@ namespace Mms\Lib;
 
 class AzureContext
 {
+    const MEDIA_SERVICES_PROCESSOR_NAME_ENCODER = 'Azure Media Encoder';
+
     private static $instance = null;
 
     private function __construct()
