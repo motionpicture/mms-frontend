@@ -18,6 +18,7 @@ $(function(){
                 }
             });
         }
-        setTimeout(f, 100);
+
+        setTimeout(f, 500);
     });
 });
