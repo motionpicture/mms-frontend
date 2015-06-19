@@ -12,10 +12,10 @@ $(function(){
                 if (data != null) {
                     var rate = Math.round(100 * (data['bytes_processed'] / data['content_length']));
                     progress.text(rate + "%");
+                }
 
-                    if (!data['done']) {
-                        setTimeout(f, 500);
-                    }
+                if (data == null || !data['done']) {
+                    setTimeout(f, 500);
                 }
             });
         }
