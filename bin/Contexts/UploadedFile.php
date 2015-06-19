@@ -94,6 +94,9 @@ class UploadedFile extends \Mms\Bin\BaseContext
 
             // メディアサービスへ資産としてアップロードする
             list($assetId, $isComleted) = $this->ingestAsset($mediaId);
+            if (!$isComleted) {
+                throw new \Exception('ingestAsset not completed.');
+            }
         } catch (\Exception $e) {
             $message = 'process throw exception. filePath:' . self::$filePath . ' message:' . $e->getMessage();
             $this->logger->log($message);
@@ -103,9 +106,6 @@ class UploadedFile extends \Mms\Bin\BaseContext
             $user = self::$user;
             $message = $user['id'] . '様<br><br>以下のファイルをメディアサービスへアップロードすることができませんでした。<br>おそれいりますが、再度ファイルのアップロードをお願いいたします。<br><br>' . pathinfo(self::$filePath, PATHINFO_BASENAME);
             $this->sendErrorMail($user['email'], $message);
-
-            $mediaId = null;
-            $assetId = null;
         }
 
         try {
@@ -131,9 +131,6 @@ class UploadedFile extends \Mms\Bin\BaseContext
             $user = self::$user;
             $message = $user['id'] . '様<br><br>以下のファイルを正常にエンコードタスクにかけることができませんでした。<br>おそれいりますが、再度ファイルのアップロードをお願いいたします。<br><br>ファイル名:' . pathinfo(self::$filePath, PATHINFO_BASENAME);
             $this->sendErrorMail($user['email'], $message);
-
-            $mediaId = null;
-            $assetId = null;
         }
 
         if (!is_null($assetId) && !$isComleted) {
