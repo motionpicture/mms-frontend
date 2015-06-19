@@ -104,42 +104,42 @@ class UploadedFile extends \Mms\Bin\BaseContext
 
             // アップロードユーザーにも通知
             $user = self::$user;
-            $message = $user['id'] . '様<br><br>以下のファイルをメディアサービスへアップロードすることができませんでした。<br>おそれいりますが、再度ファイルのアップロードをお願いいたします。<br><br>' . pathinfo(self::$filePath, PATHINFO_BASENAME);
+            $message = "{$user['id']}様<br><br>以下のファイルをメディアサービスへアップロードすることができませんでした。<br>おそれいりますが、再度ファイルのアップロードをお願いいたします。<br><br>" . pathinfo(self::$filePath, PATHINFO_BASENAME);
             $this->sendErrorMail($user['email'], $message);
         }
 
-        try {
-            // メディア登録
-            if (!is_null($mediaId) && !is_null($assetId) && $isComleted) {
+        if (!is_null($mediaId) && !is_null($assetId) && $isComleted) {
+            try {
+                // メディア登録
                 $media->setAssetId($assetId);
 
                 $query = vsprintf(
                     "INSERT INTO media (id, code, mcode, category_id, version, size, extension, user_id, movie_name, playtime_string, playtime_seconds, asset_id, job_id, job_state, job_start_at, job_end_at, start_at, end_at, created_at, updated_at, deleted_at) VALUES ('%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', datetime('now', 'localtime'), datetime('now', 'localtime'), '')",
                     $media->toArray()
                 );
-                $this->logger->log('$query:' . $query);
+                $this->logger->log("query:{$query}");
                 $this->db->exec($query);
 
-                $this->logger->log('media has been created. mediaId:' . $mediaId);
-            }
-        } catch (\Exception $e) {
-            $message = 'inserting into media throw exception. $mediaId:' . $mediaId . ' $$assetId:' . $assetId . ' message:' . $e->getMessage();
-            $this->logger->log($message);
-            $this->reportError($message);
+                $this->logger->log("media has been created. mediaId:{$mediaId}");
+            } catch (\Exception $e) {
+                $message = "inserting into media throw exception. mediaId:{$mediaId} assetId:{$assetId} message:" . $e->getMessage();
+                $this->logger->log($message);
+                $this->reportError($message);
 
-            // アップロードユーザーにも通知
-            $user = self::$user;
-            $message = $user['id'] . '様<br><br>以下のファイルを正常にエンコードタスクにかけることができませんでした。<br>おそれいりますが、再度ファイルのアップロードをお願いいたします。<br><br>ファイル名:' . pathinfo(self::$filePath, PATHINFO_BASENAME);
-            $this->sendErrorMail($user['email'], $message);
+                // アップロードユーザーにも通知
+                $user = self::$user;
+                $message = "{$user['id']}様<br><br>以下のファイルを正常にエンコードタスクにかけることができませんでした。<br>おそれいりますが、再度ファイルのアップロードをお願いいたします。<br><br>ファイル名:" . pathinfo(self::$filePath, PATHINFO_BASENAME);
+                $this->sendErrorMail($user['email'], $message);
+            }
         }
 
         if (!is_null($assetId) && !$isComleted) {
-            $assetId = null;
-            // TODO アセット削除
+//             $assetId = null;
+            // TODO アセット削除？
         }
 
-        // 元ファイル削除
-        if (!$this->getIsDev() && (!is_null($mediaId) && !is_null($assetId))) {
+        // ストレージへのアップロード完了していれば元ファイル削除
+        if (!$this->getIsDev() && $isComleted) {
             unlink(self::$filePath);
         }
 
