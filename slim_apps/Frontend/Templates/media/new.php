@@ -6,10 +6,11 @@
     <div class="main">
         <h1 class="page-header">メディア登録</h1>
 
-        <?php if ($message) { ?><p class="error" style="color: #FF0000;"><?php echo $message ?></p><?php } ?>
+        <?php if ($message) { ?><p class="error" style="color: #FF0000;"><?= $message ?></p><?php } ?>
 
-        <form class="" role="search" enctype="multipart/form-data" method="POST">
+        <form role="search" enctype="multipart/form-data" method="POST">
             <input type="hidden" name="MAX_FILE_SIZE" value="2000000000" />
+            <input type="hidden" name="<?= ini_get('session.upload_progress.name') ?>" value="example">
 
             <div class="form-group">
                 <p>
@@ -20,13 +21,13 @@
                     <select name="category_id" class="form-control">
                     <option value ="">カテゴリーを選択してください</option>
                     <?php foreach ($categories as $category) { ?>
-                    <option value ="<?php echo $category['id'] ?>"<?php if ($defaults['category_id'] == $category['id']) {echo ' selected';} ?>><?php echo $category['name'] ?></option>
+                    <option value ="<?= $category['id'] ?>"<?php if ($defaults['category_id'] == $category['id']) { ?> selected<?php } ?>><?= $category['name'] ?></option>
                     <?php } ?>
                     </select>
                 </p>
 
                 <p>
-                    <input type="file" name="file" class="" value="">
+                    <input type="file" name="file" value="">
                 </p>
 
                 <p>

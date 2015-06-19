@@ -143,6 +143,15 @@ $app->post('/media/new', function () use ($app) {
 })->name('media_create');
 
 /**
+ * メディア登録進捗
+ */
+$app->get('/media/new/progress', function () use ($app) {
+    $key = ini_get('session.upload_progress.prefix') . 'example';
+    echo isset($_SESSION[$key]) ? json_encode($_SESSION[$key]) : json_encode(null);
+    return;
+})->name('media_create_progress');
+
+/**
  * メディア一覧
  */
 $app->get('/medias', function () use ($app) {
