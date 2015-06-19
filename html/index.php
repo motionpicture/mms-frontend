@@ -30,6 +30,7 @@ $app->get('/', function () use ($app) {
 $app->get('/media/new', function () use ($app) {
     $message = null;
     $defaults = [
+        ini_get('session.upload_progress.name') => uniqid('newMedia'),
         'mcode' => '',
         'category_id' => ''
     ];
@@ -63,6 +64,7 @@ $app->get('/media/new', function () use ($app) {
 $app->post('/media/new', function () use ($app) {
     $message = null;
     $defaults = [
+        ini_get('session.upload_progress.name') => '',
         'mcode' => '',
         'category_id' => ''
     ];
@@ -145,8 +147,8 @@ $app->post('/media/new', function () use ($app) {
 /**
  * メディア登録進捗
  */
-$app->get('/media/new/progress', function () use ($app) {
-    $key = ini_get('session.upload_progress.prefix') . 'example';
+$app->get('/media/new/progress/:name', function ($name) use ($app) {
+    $key = ini_get('session.upload_progress.prefix') . $name;
     echo isset($_SESSION[$key]) ? json_encode($_SESSION[$key]) : json_encode(null);
     return;
 })->name('media_create_progress');

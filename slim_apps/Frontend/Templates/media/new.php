@@ -10,11 +10,11 @@
 
         <form role="search" enctype="multipart/form-data" method="POST">
             <input type="hidden" name="MAX_FILE_SIZE" value="2000000000" />
-            <input type="hidden" name="<?= ini_get('session.upload_progress.name') ?>" value="example">
+            <input id="session_upload_progress_name" type="hidden" name="<?= ini_get('session.upload_progress.name') ?>" value="<?= $defaults[ini_get('session.upload_progress.name')] ?>">
 
             <div class="form-group">
                 <p>
-                    <input type="text" name="mcode" class="form-control" value="<?php echo $defaults['mcode'] ?>" placeholder="作品コード">
+                    <input type="text" name="mcode" class="form-control" value="<?= $defaults['mcode'] ?>" placeholder="作品コード">
                 </p>
 
                 <p>
