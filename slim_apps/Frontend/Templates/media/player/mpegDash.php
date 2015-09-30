@@ -1,5 +1,5 @@
 <?php
-$url = $media['urls'][\Mms\Lib\Models\Task::NAME_MPEG_DASH];
+$url = str_replace('http://', 'https://', $media['urls'][\Mms\Lib\Models\Task::NAME_MPEG_DASH]);
 $code = <<< EOM
 <script>
 $(function(){

@@ -1,5 +1,5 @@
 <?php
-$url = $media['urls'][\Mms\Lib\Models\Task::NAME_HLS];
+$url = str_replace('http://', 'https://', $media['urls'][\Mms\Lib\Models\Task::NAME_HLS]);
 $code = <<< EOM
 <script>
 // ユーザーエージェントの判別
