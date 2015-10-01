@@ -97,19 +97,40 @@ class PostEncodeMedia extends \Mms\Bin\BaseContext
         return $result;
     }
 
-    /*
+    /**
+     * inputアセットを生成しなおす
+     * 
+     * @throws \Exception
+     */
     public function recreateInputAsset()
     {
         $this->logger->log("\n--------------------\n" . 'start function: ' . __FUNCTION__ . "\n--------------------\n");
         $this->logger->log('args: ' . print_r(func_get_args(), true));
 
         try {
+            // 旧メディアサービス
+            $settings = new \WindowsAzure\Common\Internal\MediaServicesSettings(
+                'pmmediasvcms',
+                'YTL/qhDoPXKDYLz9DimqBiwH9B+RQWU4Vi8GHZ4mIFQ=',
+                \WindowsAzure\Common\Internal\Resources::MEDIA_SERVICES_URL,
+                \WindowsAzure\Common\Internal\Resources::MEDIA_SERVICES_OAUTH_URL
+            );
+            $oldMediaServicesWrapper = \WindowsAzure\Common\ServicesBuilder::getInstance()->createMediaServicesService($settings);
+
+            $inputAsset = $oldMediaServicesWrapper->getAsset(self::$assetId);
+        } catch (\Exception $e) {
+            $this->logger->log("getAsset throw exception. message:{$e->getMessage()}");
+            throw $e;
+        }
+
+        try {
             $mediaServicesWrapper = $this->azureContext->getMediaServicesWrapper();
 
             // 資産を作成する
             $destinationAsset = new Asset(Asset::OPTIONS_NONE);
-            $destinationAsset->setName(self::$inputAsset->getName());
+            $destinationAsset->setName($inputAsset->getName());
             $destinationAsset = $mediaServicesWrapper->createAsset($destinationAsset);
+            $destinationAssetId = $destinationAsset->getId();
 
             $this->logger->log('destinationAsset has been created. asset:' . $destinationAsset->getId());
         } catch (\Exception $e) {
@@ -118,26 +139,26 @@ class PostEncodeMedia extends \Mms\Bin\BaseContext
         }
 
         try {
-          $blobRestProxy = $this->getBlobServicesWrapper();
+            $blobServicesWrapper = $this->azureContext->getBlobServicesWrapper();
 
-          $destinationContainer = basename($destinationAsset->getUri());
-          $sourceContainer = basename(self::$inputAsset->getUri());
+            $destinationContainer = basename($destinationAsset->getUri());
+            $sourceContainer = basename($inputAsset->getUri());
 
-          // 元のアセット内のブロブファイルリストを取得
-          $listBlobsResult = $blobRestProxy->listBlobs($sourceContainer);
-          $listBlobs = $listBlobsResult->getBlobs();
-          $this->logger->log('$listBlobs:' . print_r($listBlobs, true));
+            // 元のアセット内のブロブファイルリストを取得
+            $listBlobsResult = $blobServicesWrapper->listBlobs($sourceContainer);
+            $listBlobs = $listBlobsResult->getBlobs();
+            $this->logger->log('$listBlobs:' . print_r($listBlobs, true));
 
-          foreach ($listBlobs as $blob) {
-              $copyBlobResult = $blobRestProxy->copyBlob(
-                  $destinationContainer,
-                  $blob->getName(),
-                  $sourceContainer,
-                  $blob->getName()
-              );
+            foreach ($listBlobs as $blob) {
+                $copyBlobResult = $blobServicesWrapper->copyBlob(
+                    $destinationContainer,
+                    $blob->getName(),
+                    $sourceContainer,
+                    $blob->getName()
+                );
 
-              $this->logger->log('$copyBlobResult:' . print_r($copyBlobResult, true));
-          }
+                $this->logger->log('copyBlobResult:' . print_r($copyBlobResult, true));
+            }
         } catch (\Exception $e) {
             $this->logger->log('copyBlob throw exception. message:' . $e->getMessage());
             throw $e;
@@ -153,9 +174,16 @@ class PostEncodeMedia extends \Mms\Bin\BaseContext
             throw $e;
         }
 
+        try {
+            // アセットIDを更新
+            $query = "UPDATE media SET asset_id = '{$destinationAssetId}', job_state = '', job_id = '', updated_at = datetime('now', 'localtime') WHERE id = '" . self::$mediaId . "'";
+            $this->logger->log("query:{$query}");
+            $this->db->exec($query);
+        } catch (\Exception $e) {
+        }
+
         $this->logger->log("\n--------------------\n" . 'end function: ' . __FUNCTION__ . "\n--------------------\n");
     }
-    */
 }
 
 ?>
