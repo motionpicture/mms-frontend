@@ -7,14 +7,23 @@ date_default_timezone_set('Asia/Tokyo');
 require_once dirname(__FILE__) . '/../../../vendor/autoload.php';
 
 spl_autoload_register(function ($class) {
-    require_once dirname(__FILE__) . '/../../../lib/' . strtr($class, '\\', DIRECTORY_SEPARATOR) . '.php';
+    $file = __DIR__ . '/../../../lib/' . strtr($class, '\\', DIRECTORY_SEPARATOR) . '.php';
+    if (is_readable($file)) {
+        require_once $file;
+        return;
+    }
+
+    $file = __DIR__ . '/../../' . strtr(str_replace('Mms\\', '', $class), '\\', DIRECTORY_SEPARATOR) . '.php';
+    if (is_readable($file)) {
+        require_once $file;
+        return;
+    }
 });
+
+use WindowsAzure\Common\Internal\MediaServicesSettings;
 
 class Slim extends \Slim\Slim
 {
-    public $db;
-    public $logFile;
-
     /**
      * Constructor
      * @param  array $userSettings Associative array of application settings
@@ -43,12 +52,15 @@ class Slim extends \Slim\Slim
         }
 
         // ログファイル指定
-        $this->logFile = dirname(__FILE__) . '/../../../log/api_' . $mode . '_' . date('Ymd') . '.log';
-        $userSettings['log.writer'] = new \Slim\LogWriter(fopen($this->logFile, 'a+'));
+//        $this->logFile = dirname(__FILE__) . '/../../../log/mms_slim_' . $mode . '_' . date('Ymd') . '.log';
+        $userSettings['log.writer'] = new \Slim\Extras\Log\DateTimeFileWriter(array(
+            'path' => __DIR__ . "/../../../log/{$mode}",
+            'name_format' => '\M\m\s\A\p\iYmd',
+            'extension' => 'log',
+            'message_format' => '%label% - %date% - %message%'
+        ));
 
         parent::__construct($userSettings);
-
-        $this->db = \Mms\Lib\PDO::getInstance($userSettings['mode']);
 
         if ($this->config('debug')) {
             $this->response->headers->set('Content-Type', 'text/html; charset=UTF-8');
@@ -74,6 +86,35 @@ class Slim extends \Slim\Slim
                 'response' => $response
             ]
         );
+    }
+
+    /**
+     * Run
+     *
+     * This method invokes the middleware stack, including the core Slim application;
+     * the result is an array of HTTP status, header, and body. These three items
+     * are returned to the HTTP client.
+     */
+    public function run()
+    {
+        $context = $this;
+
+        // エラーハンドラー(非デバッグモードの場合のみ動作する)
+        $this->error(function (\Exception $e) use ($context) {
+            $context->log->error('route:{router}', array(
+                'exception' => $e,
+                'router' => print_r($context->router->getCurrentRoute()->getName(), true)
+            ));
+
+            return $this->output('FAILURE', $e->getMessage());
+        });
+
+        // 404
+        $this->notFound(function () use ($context) {
+            return $this->output('FAILURE', '404 Page Not Found');
+        });
+
+        parent::run();
     }
 }
 ?>

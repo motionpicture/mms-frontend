@@ -58,7 +58,7 @@ class BaseContext
         );
 
         $this->azureContext = \Mms\Lib\AzureContext::getInstance(self::$mode);
-        $this->db = \Mms\Lib\PDO::getInstance(self::$mode);
+        $this->db = \Mms\Lib\PDO::getInstance();
     }
 
     /**
@@ -146,7 +146,7 @@ class BaseContext
 
             // 改行コードをセット
             $mime = new Mail_mime("\n");
-            require_once __DIR__ . '/templates/mail_finish_job.php';
+            require __DIR__ . '/templates/mail_finish_job.php';
             $mime->setHTMLBody($template);
 
             // 添付画像
@@ -218,7 +218,7 @@ class BaseContext
 
             // 改行コードをセット
             $mime = new Mail_mime("\n");
-            require_once __DIR__ . '/templates/mail_error.php';
+            require __DIR__ . '/templates/mail_error.php';
             $mime->setHTMLBody($template);
 
             $body_param = array(

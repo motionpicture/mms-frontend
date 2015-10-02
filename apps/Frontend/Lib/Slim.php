@@ -7,15 +7,23 @@ date_default_timezone_set('Asia/Tokyo');
 require_once dirname(__FILE__) . '/../../../vendor/autoload.php';
 
 spl_autoload_register(function ($class) {
-    require_once dirname(__FILE__) . '/../../../lib/' . strtr($class, '\\', DIRECTORY_SEPARATOR) . '.php';
+    $file = __DIR__ . '/../../../lib/' . strtr($class, '\\', DIRECTORY_SEPARATOR) . '.php';
+    if (is_readable($file)) {
+        require_once $file;
+        return;
+    }
+
+    $file = __DIR__ . '/../../' . strtr(str_replace('Mms\\', '', $class), '\\', DIRECTORY_SEPARATOR) . '.php';
+    if (is_readable($file)) {
+        require_once $file;
+        return;
+    }
 });
 
 use WindowsAzure\Common\Internal\MediaServicesSettings;
 
 class Slim extends \Slim\Slim
 {
-    public $db;
-    public $logFile;
     public $azureContext;
 
     /**
@@ -46,18 +54,19 @@ class Slim extends \Slim\Slim
         }
 
         // ログファイル指定
-        $this->logFile = dirname(__FILE__) . '/../../../log/mms_slim_' . $mode . '_' . date('Ymd') . '.log';
-        $userSettings['log.writer'] = new \Slim\LogWriter(fopen($this->logFile, 'a+'));
+//        $this->logFile = dirname(__FILE__) . '/../../../log/mms_slim_' . $mode . '_' . date('Ymd') . '.log';
+        $userSettings['log.writer'] = new \Slim\Extras\Log\DateTimeFileWriter(array(
+            'path' => __DIR__ . "/../../../log/{$mode}",
+            'name_format' => '\M\m\s\F\r\o\n\t\e\n\dYmd',
+            'extension' => 'log',
+            'message_format' => '%label% - %date% - %message%'
+        ));
 
         parent::__construct($userSettings);
-
-        $this->db = \Mms\Lib\PDO::getInstance($userSettings['mode']);
 
         $this->azureContext = \Mms\Lib\AzureContext::getInstance($userSettings['mode']);
 
         $this->tryCreateUser();
-
-        $this->log->debug(print_r($_SERVER, true));
     }
 
     /**
@@ -69,33 +78,41 @@ class Slim extends \Slim\Slim
      */
     public function run()
     {
-        register_shutdown_function(array($this, 'shutdownHandler'));
+        $context = $this;
+
+        // エラーハンドラー
+        $this->error(function (\Exception $e) use ($context) {
+            $context->log->error('route:{router}', array(
+                'exception' => $e,
+                'router' => print_r($context->router->getCurrentRoute()->getName(), true)
+            ));
+
+            return $context->render(
+                'error.php',
+                array(
+                    'message' => $e->getMessage()
+                )
+            );
+        });
+
+        // 404
+        $this->notFound(function () use ($context) {
+            return $context->render(
+                'notFound.php'
+            );
+        });
 
         parent::run();
     }
 
-    public function shutdownHandler()
-    {
-        $error = error_get_last();
-        if (!is_array($error)) {
-            return;
-        }
-        // not fatal
-        if ($error['type'] > 1) {
-            return;
-        }
-
-        echo sprintf("%s %s \nin %s:%d\n", $error['type'], $error['message'], $error['file'], $error['line']);
-
-//         throw new \ErrorException($error['message'], $error['type'], 0, $error['file'], $error['line']);
-    }
-
     private function tryCreateUser()
     {
+        $pdo = \Mms\Lib\PDO::getInstance();
+
         // DBにベーシック認証ユーザーが存在しなかれば登録
         $query = sprintf('SELECT COUNT(id) as count FROM user WHERE id = \'%s\';',
                         $_SERVER['PHP_AUTH_USER']);
-        $statement = $this->db->query($query);
+        $statement = $pdo->query($query);
         $count = $statement->fetchColumn();
 
         if ($count == 0) {

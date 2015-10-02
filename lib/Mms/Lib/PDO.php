@@ -9,9 +9,11 @@ class PDO
     private function __construct() {
     }
 
-    public static function getInstance($mode)
+    public static function getInstance()
     {
         if (is_null(self::$instance)) {
+            include __DIR__ . '/../../../mode.php';
+
             if ($mode == 'development') {
             } else if ($mode == 'staging') {
             } else if ($mode == 'production') {

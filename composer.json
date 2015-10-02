@@ -24,6 +24,7 @@
     "require": {
         "motionpicture/mvtkservice" : "dev-master",
         "slim/slim": "2.*",
+        "slim/extras": "2.0.*",
         "microsoft/windowsazure": "*",
         "pear-pear.php.net/http_request2": "*",
         "pear-pear.php.net/pear" : "*",
