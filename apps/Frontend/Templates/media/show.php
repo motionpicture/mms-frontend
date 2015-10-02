@@ -1,8 +1,9 @@
 ﻿<?php require dirname(__FILE__) . '/../header.php' ?>
 
 <script src="/js/media/show.js"></script>
-<script src="/js/dash.all.js"></script>
+<!-- <script src="/js/dash.all.js"></script> -->
 <script src="/js/Silverlight.js"></script>
+<script src= "//amp.azure.net/libs/amp/1.3.0/azuremediaplayer.min.js"></script>
 
 <div class="row">
     <div class="main">
@@ -127,6 +128,19 @@
 
             <div class="col-xs-12 col-sm-6 col-lg-6">
                 <?php if ($media['urls'][\Mms\Lib\Models\Task::NAME_MPEG_DASH]) { ?>
+                <?php $playerId = 'azureMediaPlayer_ver' . $media['version'] ?>
+                <?php require __DIR__ . '/player/azureMediaPlayer.php' ?>
+                <div class="row placeholders">
+                  <?php echo $code ?>
+                  <h4>Azure Media Player</h4>
+                  <span class="text-muted">人気のあるほとんどの画面およびデバイスをサポート→<a target="_blank" href="https://azure.microsoft.com/ja-jp/services/media-services/media-player/">詳細</a></span>
+                </div>
+                <pre><code>&lt;script src= "//amp.azure.net/libs/amp/1.3.0/azuremediaplayer.min.js"&gt;&lt;/script&gt;
+<?php echo htmlspecialchars($code) ?></code></pre>
+                <?php } ?>
+
+                <?php if (1 == 0) { // Azure Media Playerと共存できないため、いったん非表示 ?>
+                <?php if ($media['urls'][\Mms\Lib\Models\Task::NAME_MPEG_DASH]) { ?>
                 <?php $playerId = 'mpegDashPlayer_ver' . $media['version'] ?>
                 <?php require __DIR__ . '/player/mpegDash.php' ?>
                 <div class="row placeholders">
@@ -134,8 +148,9 @@
                   <h4>MPEG DASH on HTML5</h4>
                   <span class="text-muted">IE11（Windows 8.1限定）以降、Chrome v23以降、Windows8 Applicationが対応。</span>
                 </div>
-                <pre><code>&lt;script src="/js/dash.all.js"&gt;
+                <pre><code>&lt;script src= "/js/dash.all.js"&gt;&lt;/script&gt;
 <?php echo htmlspecialchars($code) ?></code></pre>
+                <?php } ?>
                 <?php } ?>
 
                 <?php if ($media['urls'][\Mms\Lib\Models\Task::NAME_SMOOTH_STREAMING]) { ?>
@@ -144,10 +159,10 @@
                 <div class="row placeholders">
                     <?php echo $code ?>
                     <h4>Smooth Streaming on Silverlight</h4>
-                    <span class="text-muted">http://msdn.microsoft.com/ja-jp/library/cc838126(v=vs.95).aspx</span>
+                    <span class="text-muted">https://msdn.microsoft.com/ja-jp/library/cc838126(v=vs.95).aspx</span>
                     <span class="text-muted">スマホやタブレット非対応。</span>
                 </div>
-                <pre><code>&lt;script src="/js/Silverlight.js"&gt;</script>
+                <pre><code>&lt;script src="/js/Silverlight.js"&gt;&lt;/script&gt;
 <?php echo htmlspecialchars($code) ?></code></pre>
                 <?php } ?>
 
