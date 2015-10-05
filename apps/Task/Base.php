@@ -10,7 +10,7 @@ spl_autoload_register(function ($class) {
         return;
     }
 
-    $file = __DIR__ . '/../../apps/' . strtr(str_replace('Mms\\', '', $class), '\\', DIRECTORY_SEPARATOR) . '.php';
+    $file = __DIR__ . '/../' . strtr(str_replace('Mms\\', '', $class), '\\', DIRECTORY_SEPARATOR) . '.php';
     if (is_readable($file)) {
         require_once $file;
         return;
@@ -64,7 +64,7 @@ class Base
                 throw new \Exception('method does not exist.');
             }
 
-            call_user_func_array(array($controller, $method), $args);
+            call_user_func_array([$controller, $method], $args);
         } catch (\Exception $e) {
             $logger->log("called method has thrown an exception. message:{$e->getMessage()}");
         }

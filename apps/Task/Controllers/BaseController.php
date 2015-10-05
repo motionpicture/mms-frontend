@@ -1,10 +1,6 @@
 <?php
 namespace Mms\Task\Controllers;
 
-use \PEAR;
-use \Mail;
-use \Mail_mime;
-
 ini_set('display_errors', 1);
 
 // デフォルトタイムゾーン
