@@ -1,0 +1,4 @@
+<?php
+require_once __DIR__ . '/../apps/Task/Base.php';
+\Mms\Task\Base::execute($argv);
+exit;

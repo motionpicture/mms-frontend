@@ -1,12 +1,10 @@
 <?php
-namespace Mms\Bin\Contexts;
+namespace Mms\Task\Controllers;
 
-require_once __DIR__ . '/../BaseContext.php';
-
-use WindowsAzure\MediaServices\Models\Asset;
-use WindowsAzure\MediaServices\Models\Job;
-use WindowsAzure\MediaServices\Models\Task;
-use WindowsAzure\MediaServices\Models\TaskOptions;
+use \WindowsAzure\MediaServices\Models\Asset;
+use \WindowsAzure\MediaServices\Models\Job;
+use \WindowsAzure\MediaServices\Models\Task;
+use \WindowsAzure\MediaServices\Models\TaskOptions;
 
 set_time_limit(0);
 ini_set('memory_limit', '1024M');
@@ -14,10 +12,10 @@ ini_set('memory_limit', '1024M');
 /**
  * メディアサービスにてエンコードを開始する前のメディアという文脈
  *
- * @package   Mms\Bin\Contexts
+ * @package   Mms\Task\Controllers
  * @author    Tetsu Yamazaki <yamazaki@motionpicture.jp>
  */
-class PreEncodeMedia extends \Mms\Bin\BaseContext
+class PreEncodeMediaController extends BaseController
 {
     /**
      * azureでアップロード済みのメディアID
@@ -33,22 +31,30 @@ class PreEncodeMedia extends \Mms\Bin\BaseContext
      */
     private static $assetId = null;
 
-    /**
-     * __construct
-     *
-     * @param string $mediaId メディアID
-     * @param string $assetId アセットID
-     */
-    function __construct($userSettings, $mediaId = null, $assetId = null)
+    public function tryEncode()
     {
-        parent::__construct($userSettings);
+        $media = false;
 
-        if (!$mediaId || !$assetId) {
-            throw new \Exception('mediaId and assetId is required.');
+        try {
+            // アセット作成済み、ジョブ未登録、未削除のメディアを取得
+            $query = "SELECT id, asset_id FROM media WHERE asset_id <> '' AND job_id = '' AND deleted_at = '' ORDER BY updated_at ASC LIMIT 1";
+            $result = $this->db->query($query);
+            $media = $result->fetch();
+        } catch (\Exception $e) {
+            $this->logger->log("selecting medias throw exception. message:{$e->getMessage()}");
         }
 
-        self::$mediaId = $mediaId;
-        self::$assetId = $assetId;
+        if (!$media) {
+            $this->logger->log('no medias waiting for encoding.');
+            return false;
+        }
+
+        $this->logger->log("now encoding media... id:{$media['id']}");
+
+        self::$mediaId = $media['id'];
+        self::$assetId = $media['asset_id'];
+
+        return $this->encode();
     }
 
     /**
@@ -56,9 +62,9 @@ class PreEncodeMedia extends \Mms\Bin\BaseContext
      *
      * @return boolean
      */
-    public function encode()
+    private function encode()
     {
-        $this->logger->log("\n--------------------\n" . 'start function: ' . __FUNCTION__ . "\n--------------------\n");
+        $this->logger->log('start function: ' . __FUNCTION__);
 
         $job = null;
         $isUpdated = false;
@@ -78,7 +84,7 @@ class PreEncodeMedia extends \Mms\Bin\BaseContext
 
         $this->logger->log('encode result:' . print_r($isUpdated, true));
 
-        $this->logger->log("\n--------------------\n" . 'end function: ' . __FUNCTION__ . "\n--------------------\n");
+        $this->logger->log('end function: ' . __FUNCTION__ );
 
         return $isUpdated;
     }
@@ -90,7 +96,7 @@ class PreEncodeMedia extends \Mms\Bin\BaseContext
      */
     private function createJob()
     {
-        $this->logger->log("\n--------------------\n" . 'start function: ' . __FUNCTION__ . "\n--------------------\n");
+        $this->logger->log('start function: ' . __FUNCTION__);
 
         $job = null;
 
@@ -106,7 +112,7 @@ class PreEncodeMedia extends \Mms\Bin\BaseContext
 
         $this->logger->log('job has been created. job:' . $job->getId());
 
-        $this->logger->log("\n--------------------\n" . 'end function: ' . __FUNCTION__ . "\n--------------------\n");
+        $this->logger->log('end function: ' . __FUNCTION__);
 
         return $job;
     }
@@ -127,7 +133,7 @@ class PreEncodeMedia extends \Mms\Bin\BaseContext
      */
     private function prepareTasks()
     {
-        $this->logger->log("\n--------------------\n" . 'start function: ' . __FUNCTION__ . "\n--------------------\n");
+        $this->logger->log('start function: ' . __FUNCTION__);
 
         $tasks = array();
         $mediaServicesWrapper = $this->azureContext->getMediaServicesWrapper();
@@ -146,7 +152,7 @@ class PreEncodeMedia extends \Mms\Bin\BaseContext
 
         $this->logger->log('tasks has been prepared. tasks count:' . count($tasks));
 
-        $this->logger->log("\n--------------------\n" . 'end function: ' . __FUNCTION__ . "\n--------------------\n");
+        $this->logger->log('end function: ' . __FUNCTION__);
 
         return $tasks;
     }
@@ -169,7 +175,7 @@ class PreEncodeMedia extends \Mms\Bin\BaseContext
      */
     private function prepareTasks2()
     {
-      $this->logger->log("\n--------------------\n" . 'start function: ' . __FUNCTION__ . "\n--------------------\n");
+      $this->logger->log('start function: ' . __FUNCTION__);
 
       $tasks = array();
       $mediaServicesWrapper = $this->azureContext->getMediaServicesWrapper();
@@ -247,7 +253,7 @@ class PreEncodeMedia extends \Mms\Bin\BaseContext
 
       $this->logger->log('tasks has been prepared. tasks count: ' . count($tasks));
 
-      $this->logger->log("\n--------------------\n" . 'end function: ' . __FUNCTION__ . "\n--------------------\n");
+      $this->logger->log('end function: ' . __FUNCTION__);
 
       return $tasks;
     }
@@ -274,7 +280,7 @@ class PreEncodeMedia extends \Mms\Bin\BaseContext
      */
     private function updateJob($jobId, $jobState)
     {
-        $this->logger->log("\n--------------------\n" . 'start function: ' . __FUNCTION__ . "\n--------------------\n");
+        $this->logger->log('start function: ' . __FUNCTION__);
         $this->logger->log('args: ' . print_r(func_get_args(), true));
 
         // ジョブ情報をDBに登録
@@ -285,7 +291,7 @@ class PreEncodeMedia extends \Mms\Bin\BaseContext
         $this->logger->log('$query:' . $query);
         $this->db->exec($query);
 
-        $this->logger->log("\n--------------------\n" . 'end function: ' . __FUNCTION__ . "\n--------------------\n");
+        $this->logger->log('end function: ' . __FUNCTION__);
     }
 }
 

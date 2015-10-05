@@ -1,12 +1,10 @@
 <?php
-namespace Mms\Bin\Contexts;
+namespace Mms\Task\Controllers;
 
-require_once __DIR__ . '/../BaseContext.php';
-
-use WindowsAzure\MediaServices\Models\Job;
-use WindowsAzure\MediaServices\Models\AccessPolicy;
-use WindowsAzure\MediaServices\Models\Asset;
-use WindowsAzure\MediaServices\Models\Locator;
+use \WindowsAzure\MediaServices\Models\Job;
+use \WindowsAzure\MediaServices\Models\AccessPolicy;
+use \WindowsAzure\MediaServices\Models\Asset;
+use \WindowsAzure\MediaServices\Models\Locator;
 
 set_time_limit(0);
 ini_set('memory_limit', '1024M');
@@ -14,10 +12,10 @@ ini_set('memory_limit', '1024M');
 /**
  * メディアサービスにてエンコード中のメディアという文脈
  *
- * @package   Mms\Bin\Contexts
+ * @package   Mms\Task\Controllers
  * @author    Tetsu Yamazaki <yamazaki@motionpicture.jp>
  */
-class InEncodeMedia extends \Mms\Bin\BaseContext
+class InEncodeMediaController extends BaseController
 {
     /**
      * azureでアップロード済みのメディアID
@@ -40,17 +38,49 @@ class InEncodeMedia extends \Mms\Bin\BaseContext
      */
     private static $jobState = null;
 
-    function __construct($userSettings, $id, $jobId, $jobState)
+    /**
+     * ジョブの状態が$QUEUED　or $SCHEDULED or $PROCESSINGのメディアに関して
+     * ジョブ進捗を確信し、完了していればURLを発行する
+     */
+    public function check()
     {
-        parent::__construct($userSettings);
+        $media = false;
 
-        if (!$id || !$jobId) {
-            throw new \Exception('id and jobId are required.');
+        try {
+            // ジョブの状態が$QUEUED　or $SCHEDULED or $PROCESSINGのメディアを取得する
+            $query = sprintf('SELECT * FROM media WHERE job_state = \'%s\' OR job_state = \'%s\' OR job_state = \'%s\' ORDER BY updated_at ASC LIMIT 1',
+                            \WindowsAzure\MediaServices\Models\Job::STATE_QUEUED,
+                            \WindowsAzure\MediaServices\Models\Job::STATE_SCHEDULED,
+                            \WindowsAzure\MediaServices\Models\Job::STATE_PROCESSING);
+            $result = $this->db->query($query);
+            $media = $result->fetch();
+        } catch (\Exception $e) {
+            $this->logger->log("selecting medias throw exception. message:{$e->getMessage()}");
         }
 
-        self::$id = $id;
-        self::$jobId = $jobId;
-        self::$jobState = $jobState;
+        if (!$media) {
+            $this->logger->log('no medias to check.');
+            return false;
+        }
+
+        $this->logger->log("now checking job state... id:{$media['id']}");
+
+        try {
+            self::$id = $media['id'];
+            self::$jobId = $media['job_id'];
+            self::$jobState = $media['job_state'];
+
+            $url = $this->tryDeliverMedia();
+
+            // URLが発行されればメール送信
+            if (!is_null($url)) {
+                $this->sendEmail($media);
+            }
+        } catch (\Exception $e) {
+            $message = "tryDeliverMedia throw exception. mediaId:{$media['id']} message:{$e->getMessage()}";
+            $this->logger->log($message);
+            $this->reportError($message);
+        }
     }
 
     /**
@@ -58,9 +88,9 @@ class InEncodeMedia extends \Mms\Bin\BaseContext
      *
      * @return string $url 発行されたURLをひとつ
      */
-    public function tryDeliverMedia()
+    private function tryDeliverMedia()
     {
-        $this->logger->log("\n--------------------\n" . 'start function: ' . __FUNCTION__ . "\n--------------------\n");
+        $this->logger->log('start function: ' . __FUNCTION__);
 
         $job = null;
         $url = null;
@@ -148,7 +178,7 @@ class InEncodeMedia extends \Mms\Bin\BaseContext
         }
 
         $this->logger->log('$url:' . print_r($url, true));
-        $this->logger->log("\n--------------------\n" . 'end function: ' . __FUNCTION__ . "\n--------------------\n");
+        $this->logger->log('end function: ' . __FUNCTION__);
 
         return $url;
     }
@@ -180,7 +210,7 @@ class InEncodeMedia extends \Mms\Bin\BaseContext
      */
     private function createUrls($assetId, $assetName)
     {
-        $this->logger->log("\n--------------------\n" . 'start function: ' . __FUNCTION__ . "\n--------------------\n");
+        $this->logger->log('start function: ' . __FUNCTION__);
         $this->logger->log('args: ' . print_r(func_get_args(), true));
 
         $mediaServicesWrapper = $this->azureContext->getMediaServicesWrapper();
@@ -225,7 +255,7 @@ class InEncodeMedia extends \Mms\Bin\BaseContext
         }
 
         $this->logger->log('urls have been created: ' . print_r($urls, true));
-        $this->logger->log("\n--------------------\n" . 'end function: ' . __FUNCTION__ . "\n--------------------\n");
+        $this->logger->log('end function: ' . __FUNCTION__);
 
         return $urls;
     }

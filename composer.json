@@ -25,6 +25,7 @@
         "motionpicture/mvtkservice" : "dev-master",
         "slim/slim": "2.*",
         "slim/extras": "2.0.*",
+        "swiftmailer/swiftmailer": "@stable",
         "microsoft/windowsazure": "*",
         "pear-pear.php.net/http_request2": "*",
         "pear-pear.php.net/pear" : "*",

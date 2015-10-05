@@ -1,18 +1,16 @@
 <?php
-namespace Mms\Bin\Contexts;
+namespace Mms\Task\Controllers;
 
-require_once __DIR__ . '/../BaseContext.php';
+use \WindowsAzure\MediaServices\Models\Asset;
+use \WindowsAzure\MediaServices\Models\AccessPolicy;
+use \WindowsAzure\MediaServices\Models\Locator;
+use \WindowsAzure\MediaServices\Models\Job;
+use \WindowsAzure\MediaServices\Models\Task;
+use \WindowsAzure\MediaServices\Models\TaskOptions;
 
-use WindowsAzure\MediaServices\Models\Asset;
-use WindowsAzure\MediaServices\Models\AccessPolicy;
-use WindowsAzure\MediaServices\Models\Locator;
-use WindowsAzure\MediaServices\Models\Job;
-use WindowsAzure\MediaServices\Models\Task;
-use WindowsAzure\MediaServices\Models\TaskOptions;
-
-use WindowsAzure\Blob\Models\Block;
-use WindowsAzure\Blob\Models\BlobBlockType;
-use WindowsAzure\Blob\Models\CreateBlobBlockOptions;
+use \WindowsAzure\Blob\Models\Block;
+use \WindowsAzure\Blob\Models\BlobBlockType;
+use \WindowsAzure\Blob\Models\CreateBlobBlockOptions;
 
 set_time_limit(0);
 ini_set('memory_limit', '1024M');
@@ -20,10 +18,10 @@ ini_set('memory_limit', '1024M');
 /**
  * 管理サイトあるいはFTPにてアップロードされたファイルという文脈
  *
- * @package   Mms\Bin\Contexts
+ * @package   Mms\Task\Controllers
  * @author    Tetsu Yamazaki <yamazaki@motionpicture.jp>
  */
-class UploadedFile extends \Mms\Bin\BaseContext
+class UploadedFileController extends BaseController
 {
     /**
      * アップロードされたファイルパス
@@ -40,13 +38,14 @@ class UploadedFile extends \Mms\Bin\BaseContext
     private static $user = null;
 
     /**
-     * __construct
+     * アップロードプロセス
      *
      * @see http://php.net/manual/ja/features.file-upload.common-pitfalls.php
      */
-    function __construct($userSettings, $filePath = null)
+    public function process()
     {
-        parent::__construct($userSettings);
+        $filePath = fgets(STDIN);
+        $filePath = str_replace(["\r\n", "\r", "\n"], '', $filePath);
 
         if (!$filePath) {
             throw new \Exception('filePath is required.');
@@ -62,12 +61,14 @@ class UploadedFile extends \Mms\Bin\BaseContext
         $statement = $this->db->query($query);
         $user = $statement->fetch();
         if (!$user) {
-            throw new \Exception('user:' . $userId . ' does not exist.');
+            throw new \Exception("user:{$userId} does not exist.");
         }
         $this->logger->debug('user:' . print_r($user, true));
 
         self::$filePath = $filePath;
         self::$user = $user;
+
+        list($mediaId, $assetId) = $this->path2asset();
     }
 
     /**
@@ -79,9 +80,9 @@ class UploadedFile extends \Mms\Bin\BaseContext
      *
      * @return array
      */
-    public function path2asset()
+    private function path2asset()
     {
-        $this->logger->log("\n--------------------\n" . 'start function: ' . __FUNCTION__ . "\n--------------------\n");
+        $this->logger->log('start function: ' . __FUNCTION__);
 
         $mediaId = null;
         $assetId = null;
@@ -139,11 +140,11 @@ class UploadedFile extends \Mms\Bin\BaseContext
         }
 
         // ストレージへのアップロード完了していれば元ファイル削除
-        if (!$this->getIsDev() && $isComleted) {
+        if (!$this->config->isDev() && $isComleted) {
             unlink(self::$filePath);
         }
 
-        $this->logger->log("\n--------------------\n" . 'end function: ' . __FUNCTION__ . "\n--------------------\n");
+        $this->logger->log('end function: ' . __FUNCTION__);
 
         return [$mediaId, $assetId];
     }
@@ -156,7 +157,7 @@ class UploadedFile extends \Mms\Bin\BaseContext
      */
     private function path2media($path)
     {
-        $this->logger->log("\n--------------------\n" . 'start function: ' . __FUNCTION__ . "\n--------------------\n");
+        $this->logger->log('start function: ' . __FUNCTION__);
         $this->logger->log('$path: ' . print_r($path, true));
 
         $fileName = pathinfo($path, PATHINFO_FILENAME);
@@ -260,7 +261,7 @@ class UploadedFile extends \Mms\Bin\BaseContext
         $media = \Mms\Lib\Models\Media::createFromOptions($options);
 
         $this->logger->log('$media: ' . print_r($media, true));
-        $this->logger->log("\n--------------------\n" . 'end function: ' . __FUNCTION__ . "\n--------------------\n");
+        $this->logger->log('end function: ' . __FUNCTION__);
 
         return $media;
     }
@@ -273,7 +274,7 @@ class UploadedFile extends \Mms\Bin\BaseContext
      */
     private function ingestAsset($mediaId)
     {
-        $this->logger->log("\n--------------------\n" . 'start function: ' . __FUNCTION__ . "\n--------------------\n");
+        $this->logger->log('start function: ' . __FUNCTION__);
         $this->logger->log('args: ' . print_r(func_get_args(), true));
 
         $asset = null;
@@ -330,9 +331,47 @@ class UploadedFile extends \Mms\Bin\BaseContext
             }
         }
 
-        $this->logger->log("\n--------------------\n" . 'end function: ' . __FUNCTION__ . "\n--------------------\n");
+        $this->logger->log('end function: ' . __FUNCTION__);
 
         return [$assetId, $isCompleted];
+    }
+
+    /**
+     * アップロードディレクトリに残ったゴミファイルを物理削除する
+     */
+    public function clean()
+    {
+        $dir = __DIR__ . '/../../../uploads';
+        $iterator = new \RecursiveDirectoryIterator($dir);
+        $iterator = new \RecursiveIteratorIterator($iterator);
+
+        $files4delete = [];
+        foreach ($iterator as $fileinfo) {
+            try {
+                // $fileinfoはSplFiIeInfoオブジェクト
+                // ドット始まりのファイルは除外
+                if ($fileinfo->isFile() && substr($fileinfo->getFilename(), 0, 1) != '.') {
+                    // 3日以上経過していれば追加
+                    $absence = time() - $fileinfo->getCTime();
+                    if ($absence > 60 * 60 * 24 * 3) {
+                        $files4delete[] = [
+                            'path'  => $fileinfo->getPathname(),
+                            'ctime' => date('Y-m-d H:i:s', $fileinfo->getCTime()) // inode変更時刻
+                        ];
+                    }
+                }
+            } catch (Exception $e) {
+                $this->logger->log('fileinfo-> throw exception. message:' . $e->getMessage());
+            }
+        }
+
+        $this->logger->log('files4delete:' . count($files4delete));
+
+        // 削除
+        foreach ($files4delete as $file) {
+            unlink($file['path']);
+            $this->logger->log("A file has been deleted. path:{$file['path']}");
+        }
     }
 }
 

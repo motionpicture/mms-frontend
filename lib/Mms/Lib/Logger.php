@@ -1,5 +1,4 @@
 <?php
-
 namespace Mms\Lib;
 
 class Logger
@@ -21,23 +20,25 @@ class Logger
         return self::$instance;
     }
 
-    private $logFile;
+    private $file;
     private $isDev;
     private $isDisplayOutput;
+    private $prefix;
 
     private function __construct() {
     }
 
-    public function initialize($logFile, $isDev = false, $isDisplayOutput = false)
+    public function initialize($file, $isDev = false, $isDisplayOutput = false, $prefix = null)
     {
-        $this->logFile = $logFile;
+        $this->file = $file;
         $this->isDev = $isDev;
         $this->isDisplayOutput = $isDisplayOutput;
+        $this->prefix = $prefix;
 
         // ディレクトリがなければ再帰的に作成
-        if (!file_exists(dirname($logFile))) {
-            mkdir(dirname($this->logFile), 0777, true);
-            chmod(dirname($this->logFile), 0777);
+        if (!file_exists(dirname($file))) {
+            mkdir(dirname($this->file), 0777, true);
+            chmod(dirname($this->file), 0777);
         }
     }
 
@@ -50,12 +51,16 @@ class Logger
     public function log($content)
     {
         if (!is_string($content)) {
-          $content = print_r($content, true);
+            $content = print_r($content, true);
         }
 
-        $log = $content . "\n";
+        $log = "{$this->prefix} {$content}\n";
 
-        file_put_contents($this->logFile, $log, FILE_APPEND);
+        file_put_contents(
+            $this->file,
+            $log,
+            FILE_APPEND | LOCK_EX
+        );
 
         if ($this->isDisplayOutput) {
             echo $log;
@@ -69,6 +74,62 @@ class Logger
     {
         if ($this->isDev) {
             $this->log($content);
+        }
+    }
+
+    /**
+     * ログ追加
+     */
+    public function error($errno, $errstr, $errfile, $errline, $errcontext)
+    {
+        switch ($errno) {
+            case E_ERROR:
+                $content = "[E_ERROR] {$errstr} {$errfile} {$errline}";
+                break;
+
+            case E_WARNING:
+                $content = "[E_WARNING] {$errstr} {$errfile} {$errline}";
+                break;
+
+            case E_PARSE:
+                $content = "[E_PARSE] {$errstr} {$errfile} {$errline}";
+                break;
+
+            case E_NOTICE:
+                $content = "[E_NOTICE] {$errstr} {$errfile} {$errline}";
+                break;
+
+            case E_STRICT:
+                $content = "[E_STRICT] {$errstr} {$errfile} {$errline}";
+                break;
+
+            case E_RECOVERABLE_ERROR:
+                $content = "[E_RECOVERABLE_ERROR] {$errstr} {$errfile} {$errline}";
+                break;
+
+            case E_DEPRECATED:
+                $content = "[E_DEPRECATED] {$errstr} {$errfile} {$errline}";
+                break;
+        }
+
+        $this->log($content);
+    }
+
+    /**
+     * シャットダウン時のログ出力
+     * 
+     * @see http://php.net/manual/en/errorfunc.constants.php
+     */
+    public function shutdown()
+    {
+        $e = error_get_last();
+        if ($e['type'] == E_ERROR
+         || $e['type'] == E_PARSE
+         || $e['type'] == E_CORE_ERROR
+         || $e['type'] == E_USER_ERROR ) {
+            $message = 'script has been shutdown because of a fatal error. error:' . print_r($e, true);
+
+            $this->log(__METHOD__ . " message:{$message}");
         }
     }
 }
